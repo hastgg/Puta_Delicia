@@ -87,6 +87,7 @@ const abrir = c => ({
   ...c, whatsapp: K.descifrar(c.whatsapp, 'whatsapp'), correo: K.descifrar(c.correo, 'correo'),
   fecha_nacimiento: K.descifrar(c.fecha_nacimiento, 'fecha_nacimiento'),
 });
+
 // Filtro de búsqueda por código, correo, WhatsApp o nombre (el correo y el WhatsApp se buscan por su hash)
 function filtroBusqueda(q) {
   const w = normWhats(q);
@@ -97,7 +98,8 @@ function filtroBusqueda(q) {
 }
 const maskWhats = w => (w && w.length > 5 ? w.slice(0, 3) + '*'.repeat(w.length - 5) + w.slice(-2) : w || '');
 const maskCorreo = c => { const [u, d] = String(c || '').split('@'); return d ? u[0] + '***@' + d : ''; };
-const maskNac = n => (n ? n.slice(0, 4) + '-**-**' : '');
+const maskNombre = n => String(n || '').split(' ').filter(Boolean).map(p => p[0] + '***').join(' ');   // "J*** P***"
+const maskNac = n => (n ? '****-**-**' : '');
 
 const completo = c => {
   const a = abrir(c);
@@ -340,6 +342,19 @@ function hoja(wb, nombre, columnas) {
 // El PIN solo se acepta por cabecera (antes también por ?pin=, que queda en historiales y logs).
 app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), soloAdmin, ah(async (req, res) => {
   const completoXl = req.query.completo === '1';
+  if (completoXl) {
+    // Comparte el límite de intentos con la recuperación de contraseña (5 por IP / 50 globales cada 15 min)
+    const k = 'rec:' + req.ip;
+    if (L.bloqueado(k, MAX_REC_IP) || L.bloqueado('rec:global', MAX_REC_GLOBAL))
+      return fallo(res, 429, 'Demasiados intentos. Espera 15 minutos.');
+    let cod = req.get('x-codigo') || ''; try { cod = decodeURIComponent(cod); } catch {}
+    if (!(await C.verificarCodigo(credenciales, cod))) {
+      L.sumar(k, VENTANA_REC); L.sumar('rec:global', VENTANA_REC * 4);
+      await auditar(req, 'EXCEL_CODIGO_FALLIDO');
+      return fallo(res, 403, 'Código de recuperación incorrecto.');
+    }
+    L.limpiar(k);
+  }
   auditar(req, completoXl ? 'EXCEL_COMPLETO' : 'EXCEL_ENMASCARADO');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Puta Delicia BBQ House';
@@ -354,7 +369,7 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
   for (const raw of await clientes.find().sort({ fecha_registro: 1 }).toArray()) {
     const c = abrir(raw);
     wc.addRow({
-      id: c._id, nombre: c.nombre,
+      id: c._id, nombre: completoXl ? c.nombre : maskNombre(c.nombre),
       whatsapp: completoXl ? c.whatsapp : maskWhats(c.whatsapp), correo: completoXl ? c.correo : maskCorreo(c.correo),
       nacimiento: completoXl ? (c.fecha_nacimiento || '') : maskNac(c.fecha_nacimiento),
       acepta: c.acepta_notificaciones ? 'SÍ' : 'NO', puntos: c.puntos,
@@ -367,7 +382,8 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
     { header: 'Nombre', key: 'nombre', width: 28 }, { header: 'Movimiento', key: 'tipo', width: 14 },
     { header: 'Puntos', key: 'puntos', width: 9 }, { header: 'Detalle', key: 'detalle', width: 40 },
   ]);
-  for (const m of await movimientos.find().sort({ fecha: 1 }).toArray()) wm.addRow({ ...m, fecha: fmt(m.fecha) });
+  for (const m of await movimientos.find().sort({ fecha: 1 }).toArray()) 
+    wm.addRow({ ...m, nombre: completoXl ? m.nombre : maskNombre(m.nombre), fecha: fmt(m.fecha) });
 
   const wk = hoja(wb, 'Calificación y comentarios', [
     { header: 'Fecha', key: 'fecha', width: 20 }, { header: 'ID', key: 'id', width: 12 },
@@ -382,7 +398,7 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
     const estado = !k.estado || k.estado === 'CALIFICADA' ? 'Calificó'
       : (k.estado === 'PENDIENTE' && k.vence > ahora) ? 'Pendiente' : 'No calificó';
     const f = wk.addRow({
-      fecha: fmt(k.fecha), id: k.id, nombre: k.nombre, estado,
+      fecha: fmt(k.fecha), id: k.id, nombre: completoXl ? k.nombre : maskNombre(k.nombre), estado,
       general: estado === 'Calificó' ? k.general : '', servicio: k.servicio ?? '', comida: k.comida ?? '', lugar: k.lugar ?? '',
       comentario: k.comentario || '',
     });
@@ -479,18 +495,27 @@ app.post('/api/verificar-admin', soloAdmin, (req, res) => { auditar(req, 'ACCESO
 /* 7z) Seguridad del dueño: cambiar contraseña, cambiar PIN de caja, código de recuperación y bitácora ------------- */
 // Solo el dueño puede tocar estas claves, y cada cambio le pide su contraseña ACTUAL (aunque ya tenga el panel abierto).
 const limSeguridad = L.limitar('seguridad', { max: 30, ventanaMs: H });
-const ACCIONES_SEGURIDAD = ['CAMBIO_CLAVE_ADMIN', 'CAMBIO_PIN_CAJA', 'CODIGO_RECUPERACION_NUEVO', 'RECUPERACION_USADA', 'RECUPERACION_FALLIDA', 'RESET_ADMIN_PC', 'CREDENCIALES_INICIALES'];
+const ACCIONES_SEGURIDAD = ['CAMBIO_CLAVE_ADMIN', 'CAMBIO_PIN_CAJA', 'CODIGO_RECUPERACION_NUEVO', 'RECUPERACION_USADA', 'RECUPERACION_FALLIDA', 'RESET_ADMIN_PC', 'CREDENCIALES_INICIALES', 'EXCEL_COMPLETO', 'EXCEL_CODIGO_FALLIDO'];
 const textoActual = req => String(req.body?.actual ?? '');
+const POR_PAG = 10;
+const paginar = (req, total) => {
+  const paginas = Math.max(1, Math.ceil(total / POR_PAG));
+  return { paginas, pag: Math.min(Math.max(parseInt(req.query.pag) || 1, 1), paginas) };
+};
 
 app.get('/api/admin/seguridad', soloAdmin, ah(async (req, res) => {
+  const filtro = { accion: { $in: ACCIONES_SEGURIDAD } };
+  const total = await auditoria.countDocuments(filtro);
+  const { pag, paginas } = paginar(req, total);
   const [adm, caja, bit] = await Promise.all([
     C.obtener(credenciales, C.ID_ADMIN), C.obtener(credenciales, C.ID_CAJA),
-    auditoria.find({ accion: { $in: ACCIONES_SEGURIDAD } }).sort({ fecha: -1 }).limit(30).toArray(),
+    auditoria.find(filtro).sort({ fecha: -1 }).skip((pag - 1) * POR_PAG).limit(POR_PAG).toArray(),
   ]);
   res.json({
     ok: true, tiene_codigo: !!adm?.recuperacion, codigo_creado: adm?.recuperacion?.creado ?? null,
     clave_actualizada: adm?.actualizado ?? null, pin_caja_actualizado: caja?.actualizado ?? null,
     bitacora: bit.map(b => ({ fecha: b.fecha, accion: b.accion, ip: b.ip, detalle: b.detalle || '' })),
+    pag, paginas, total,
   });
 }));
 
@@ -513,14 +538,6 @@ app.post('/api/admin/cambiar-pin-caja', limSeguridad, ah(async (req, res) => {
   await C.fijarSecreto(credenciales, C.ID_CAJA, nuevo);
   await auditar(req, 'CAMBIO_PIN_CAJA');
   res.json({ ok: true });
-}));
-
-// Genera (o reemplaza) el código de recuperación. El anterior deja de servir. Se muestra una sola vez.
-app.post('/api/admin/generar-codigo', limSeguridad, ah(async (req, res) => {
-  if (!(await comprobar(req, res, textoActual(req), ['admin'], 'Tu contraseña actual no es correcta.'))) return;
-  const codigo = await C.nuevoCodigo(credenciales);
-  await auditar(req, 'CODIGO_RECUPERACION_NUEVO');
-  res.json({ ok: true, codigo });
 }));
 
 // Recuperación SIN sesión: el dueño olvidó su contraseña. Con el código fija una nueva y recibe un código nuevo.
@@ -586,17 +603,16 @@ app.get('/api/admin/dashboard', soloAdmin, ah(async (req, res) => {
 app.get('/api/admin/clientes', soloAdmin, ah(async (req, res) => {
   const q = String(req.query.q || '').trim();
   const filtro = q ? filtroBusqueda(q) : {};
-  const LIMITE = q ? 20 : 500;
-  const [lista, total] = await Promise.all([
-    clientes.find(filtro, { projection: { nombre: 1 } }).sort({ nombre_norm: 1 }).limit(LIMITE).toArray(),
-    clientes.countDocuments(filtro),
-  ]);
+  const total = await clientes.countDocuments(filtro);
+  const { pag, paginas } = paginar(req, total);                // 10 por página, también en la búsqueda
+  const lista = await clientes.find(filtro, { projection: { nombre: 1 } })
+    .sort({ nombre_norm: 1, _id: 1 }).skip((pag - 1) * POR_PAG).limit(POR_PAG).toArray();
   const medias = await calificaciones.aggregate([
     { $match: { id: { $in: lista.map(c => c._id) }, general: { $type: 'number' } } },
     { $group: { _id: '$id', general: { $avg: '$general' }, n: { $sum: 1 } } },
   ]).toArray();
   const m = new Map(medias.map(x => [x._id, x]));
-  res.json({ ok: true, total, clientes: lista.map(c => ({ id: c._id, nombre: c.nombre, general: E.redondear(m.get(c._id)?.general), n: m.get(c._id)?.n || 0 })) });
+  res.json({ ok: true, total, pag, paginas, clientes: lista.map(c => ({ id: c._id, nombre: c.nombre, general: E.redondear(m.get(c._id)?.general), n: m.get(c._id)?.n || 0 })) });
 }));
 
 // 7c) Detalle de un cliente: visitas, premios canjeados (con fecha), calificaciones y comentarios

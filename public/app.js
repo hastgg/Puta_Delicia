@@ -353,6 +353,7 @@ const Admin = (() => {
   const CAMPOS = [['servicio', 'Servicio', FIRE], ['comida', 'Comida', EMBER], ['lugar', 'Lugar', GRIS]];
   let pinA = sessionStorage.getItem('pd_admin') || '', modo = 'resumen', rango = '7d', gran = 'semana';
   let tokR = 0, tokC = 0, tokB = 0, tokL = 0, comparado = false;
+  let pagL = 1, pagB = 1, pagS = 1;                                 // página actual: clientes, búsqueda y bitácora
 
   /* ---------- utilidades ---------- */
   const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -382,6 +383,14 @@ const Admin = (() => {
     while (fin - ini < 5) { if (ini > 0) ini--; if (fin - ini < 5 && fin < 23) fin++; }
     return [ini, fin];
   }
+  // Paginador «← Anterior · Página X de Y · Siguiente →». Se oculta si todo cabe en una página (10 por página, lo define el servidor)
+  function pintarPager(el, r, ir) {
+    const hay = r.paginas > 1;
+    el.classList.toggle('hidden', !hay);
+    el.innerHTML = hay ? `<button type="button" data-p="${r.pag - 1}"${r.pag <= 1 ? ' disabled' : ''}>← Anterior</button><span>Página ${r.pag} de ${r.paginas}</span><button type="button" data-p="${r.pag + 1}"${r.pag >= r.paginas ? ' disabled' : ''}>Siguiente →</button>` : '';
+    el.onclick = e => { const b = e.target.closest('button[data-p]'); if (b && !b.disabled) ir(+b.dataset.p); };
+  }
+  const rangoPag = r => `${(r.pag - 1) * 10 + 1}–${Math.min(r.pag * 10, r.total)}`;
   function seg(sel, attr, fn) {                                    // grupo de botones tipo "pestañas"
     $(sel).addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -439,29 +448,26 @@ const Admin = (() => {
     };
   }
 
-  async function cargarSeguridad() {
-    const r = await pedir('/api/admin/seguridad'); if (!r) return;
+  async function cargarSeguridad(pag = pagS) {
+    const r = await pedir('/api/admin/seguridad?pag=' + pag); if (!r) return;
+    pagS = r.pag;
     $('#as-estado').textContent = [
       r.clave_actualizada ? 'Contraseña cambiada el ' + fFechaHora(r.clave_actualizada) : 'Contraseña sin cambios desde su creación',
       r.pin_caja_actualizado ? 'PIN de caja cambiado el ' + fFechaHora(r.pin_caja_actualizado) : null,
-      r.tiene_codigo ? 'Código de recuperación creado el ' + fFechaHora(r.codigo_creado) : '⚠ Aún no tienes código de recuperación',
+      r.tiene_codigo ? 'Código de recuperación creado el ' + fFechaHora(r.codigo_creado) : null,
     ].filter(Boolean).join(' · ');
     $('#as-bit').innerHTML = r.bitacora.length ? r.bitacora.map(b =>
       `<li class="bg-card border border-[#2a2a2a] rounded-xl px-3 py-2 flex flex-wrap justify-between gap-x-4"><span>${esc(ACCIONES[b.accion] || b.accion)}${b.detalle ? ` <span class="text-[#6b6b6b]">(${esc(b.detalle)})</span>` : ''}</span><span class="text-xs text-[#A3A3A3]">${esc(fFechaHora(b.fecha))} · IP ${esc(b.ip)}</span></li>`).join('')
       : '<li class="text-[#A3A3A3]">Todavía no hay eventos.</li>';
-    $('#a-aviso').classList.toggle('hidden', r.tiene_codigo);
-  }
-  async function avisoCodigo() {                      // al entrar: avisa si todavía no hay código de recuperación
-    const r = await api('/api/admin/seguridad', { pin: pinA });
-    $('#a-aviso').classList.toggle('hidden', !(r.ok && !r.tiene_codigo));
+    pintarPager($('#as-pag'), r, cargarSeguridad);
+    $('#as-sub').textContent = 'Cada cambio y cada uso del código, con fecha e IP' + (r.paginas > 1 ? ` · ${rangoPag(r)} de ${r.total}` : '');
   }
   function verSeguridad(on) {
     $('#a-seg').classList.toggle('hidden', !on); $('#a-home').classList.toggle('hidden', on); $('#a-cli').classList.add('hidden');
-    if (on) { ['#sc-actual', '#sc-nueva', '#sc-nueva2', '#sp-actual', '#sp-nuevo', '#sp-nuevo2', '#sk-actual'].forEach(i => { $(i).value = ''; }); ['#sc-msg', '#sp-msg', '#sk-msg'].forEach(i => msg(i, '')); cargarSeguridad(); }
+    if (on) { pagS = 1; ['#sc-actual', '#sc-nueva', '#sc-nueva2', '#sp-actual', '#sp-nuevo', '#sp-nuevo2'].forEach(i => { $(i).value = ''; }); ['#sc-msg', '#sp-msg'].forEach(i => msg(i, '')); cargarSeguridad(); }
   }
   $('#a-seg-btn').onclick = () => verSeguridad(true);
-  $('#a-aviso-ir').onclick = () => verSeguridad(true);
-  $('#as-back').onclick = () => { verSeguridad(false); avisoCodigo(); };
+  $('#as-back').onclick = () => verSeguridad(false);
 
   async function enviarSeg(ruta, body, sel) {         // 401 aquí = contraseña actual mal escrita (no cierra la sesión)
     const r = await api(ruta, { method: 'POST', body });
@@ -486,13 +492,6 @@ const Admin = (() => {
     if (!await enviarSeg('/api/admin/cambiar-pin-caja', { actual, nuevo }, '#sp-msg')) return;
     ['#sp-actual', '#sp-nuevo', '#sp-nuevo2'].forEach(i => { $(i).value = ''; });
     msg('#sp-msg', '✔ PIN de caja cambiado. Avísale al personal: el anterior ya no sirve.', true); cargarSeguridad();
-  };
-  $('#sk-form').onsubmit = async e => {
-    e.preventDefault();
-    const actual = $('#sk-actual').value; if (!actual) return msg('#sk-msg', 'Escribe tu contraseña de dueño.');
-    const r = await enviarSeg('/api/admin/generar-codigo', { actual }, '#sk-msg'); if (!r) return;
-    $('#sk-actual').value = ''; msg('#sk-msg', '');
-    mostrarCodigo(r.codigo, () => { msg('#sk-msg', '✔ Código guardado. El anterior ya no sirve.', true); cargarSeguridad(); });
   };
 
   /* ---------- «¿Olvidaste tu contraseña?»: restablecer con el código de recuperación ---------- */
@@ -593,25 +592,27 @@ const Admin = (() => {
   const filaCliente = c => `<button type="button" class="crow" data-id="${esc(c.id)}">
       <span class="nm">${esc(c.nombre)}<small>${esc(c.id)}</small></span>
       <span class="rt${c.general == null ? ' none' : ''}">${c.general == null ? 'Sin calificar' : num(c.general) + ' ★'}${c.n ? `<small>(${c.n})</small>` : ''}</span></button>`;
-  async function cargarLista() {
+  async function cargarLista(pag = pagL) {
     const t = ++tokL;
-    const r = await pedir('/api/admin/clientes');
+    const r = await pedir('/api/admin/clientes?pag=' + pag);
     if (!r || t !== tokL) return;
-    $('#l-total').textContent = plural(r.total, 'cliente', 'clientes');
+    pagL = r.pag;                                                   // el servidor ajusta la página si ya no existe
+    $('#l-total').textContent = plural(r.total, 'cliente', 'clientes') + (r.paginas > 1 ? ` · página ${r.pag} de ${r.paginas}` : '');
     $('#l-lista').innerHTML = r.clientes.length ? r.clientes.map(filaCliente).join('') : '<p class="vacio">Aún no hay clientes registrados.</p>';
+    pintarPager($('#l-pag'), r, cargarLista);
     const nota = $('#l-nota');
     nota.classList.toggle('hidden', r.total <= r.clientes.length);
-    nota.textContent = `Mostrando ${r.clientes.length} de ${r.total}. Usa la lupa para buscar a alguien en particular.`;
+    nota.textContent = `Mostrando ${rangoPag(r)} de ${r.total}. Usa la lupa para buscar a alguien en particular.`;
   }
   $('#l-lista').onclick = e => { const id = e.target.closest('.crow')?.dataset.id; if (id) abrirCliente(id); };
 
-  const q = $('#a-q'), sug = $('#a-sug');
+  const q = $('#a-q'), sug = $('#a-sug'), sugL = $('#a-sug-l'), sugP = $('#a-sug-p');
   function lupa(abrir) {
     const caja = $('#a-searchbox');
     abrir = abrir ?? !caja.classList.contains('open');
     caja.classList.toggle('open', abrir); q.tabIndex = abrir ? 0 : -1;
     $('#a-lupa').setAttribute('aria-expanded', String(abrir));
-    if (abrir) setTimeout(() => q.focus(), 60); else { q.value = ''; sug.classList.add('hidden'); sug.innerHTML = ''; }
+    if (abrir) setTimeout(() => q.focus(), 60); else { q.value = ''; sug.classList.add('hidden'); sugL.innerHTML = ''; sugP.innerHTML = ''; }
   }
   $('#a-lupa').onclick = () => lupa();
   q.onkeydown = e => {
@@ -622,14 +623,16 @@ const Admin = (() => {
     clearTimeout(q.t);
     const v = q.value.trim();
     if (v.length < 2) { sug.classList.add('hidden'); return; }
-    q.t = setTimeout(async () => {
-      const t = ++tokB;
-      const r = await pedir('/api/admin/clientes?q=' + encodeURIComponent(v));
-      if (!r || t !== tokB || q.value.trim() !== v) return;
-      sug.innerHTML = r.clientes.length ? r.clientes.map(filaCliente).join('') : '<p class="vacio">No se encontró a nadie con ese dato.</p>';
-      sug.classList.remove('hidden');
-    }, 250);
+    q.t = setTimeout(() => buscar(v, 1), 250);
   };
+  async function buscar(v, pag) {                                   // resultados de la lupa: también de 10 en 10
+    const t = ++tokB;
+    const r = await pedir(`/api/admin/clientes?q=${encodeURIComponent(v)}&pag=${pag}`);
+    if (!r || t !== tokB || q.value.trim() !== v) return;
+    sugL.innerHTML = r.clientes.length ? r.clientes.map(filaCliente).join('') : '<p class="vacio">No se encontró a nadie con ese dato.</p>';
+    pintarPager(sugP, r, p => buscar(v, p));
+    sug.classList.remove('hidden');
+  }
   sug.onclick = e => { const id = e.target.closest('.crow')?.dataset.id; if (id) abrirCliente(id); };
 
   /* ---------- Ficha de un cliente ---------- */
@@ -730,9 +733,30 @@ const Admin = (() => {
   seg('#a-gran', 'gran', fijarGran);
   $('#a-fa').onchange = $('#a-fb').onchange = cargarComparar;
 
+  /* ---------- Paneles desplegables ---------- */
+  // Las gráficas dentro de un panel cerrado miden 0: al abrirlo se vuelven a medir.
+  const ambito = b => (b.dataset.acc === '#a-resumen' && modo === 'comparar' ? '#a-comparar' : b.dataset.acc);
+  const paneles = b => [...document.querySelectorAll(ambito(b) + ' details.acc')];
+  function rotuloTodo() {
+    document.querySelectorAll('.acc-all').forEach(b => {
+      const p = paneles(b); b.textContent = p.length && p.every(d => d.open) ? 'Contraer todo' : 'Expandir todo';
+    });
+  }
+  document.querySelectorAll('.acc-all').forEach(b => b.onclick = () => {
+    const p = paneles(b), abrir = !p.every(d => d.open);
+    p.forEach(d => { d.open = abrir; });
+    rotuloTodo();
+  });
+  document.addEventListener('toggle', e => {                         // «toggle» no burbujea: se escucha en captura
+    if (!e.target.matches?.('details.acc')) return;
+    if (e.target.open) e.target.querySelectorAll('canvas').forEach(cv => charts[cv.id]?.resize());
+    rotuloTodo();
+  }, true);
+
   /* ---------- Modos y arranque ---------- */
   function setModo(m) {
     modo = m;
+    rotuloTodo();
     $('#a-resumen').classList.toggle('hidden', m !== 'resumen');
     $('#a-comparar').classList.toggle('hidden', m !== 'comparar');
     $('#a-rangos').classList.toggle('hidden', m !== 'resumen');
@@ -747,25 +771,40 @@ const Admin = (() => {
     vista(true);
     $('#a-cli').classList.add('hidden'); $('#a-seg').classList.add('hidden'); $('#a-home').classList.remove('hidden');
     setModo(modo);
-    avisoCodigo();
   }
 
   /* ---------- Excel (dueño): ahora vive dentro del panel ---------- */
-  // Por defecto el Excel sale con los datos de contacto ocultos; «Excel completo» los incluye (queda anotado en la bitácora)
-  async function bajarExcel(completo) {
-    if (completo && !confirm('Este Excel incluye WhatsApp, correo y fecha de nacimiento completos de tus clientes. Guárdalo en un lugar seguro y no lo envíes por chat. ¿Descargar?')) return;
+  // Por defecto el Excel sale con los datos de contacto ocultos; «Excel completo» los incluye y pide el código de recuperación (queda anotado en la bitácora)
+  async function bajarExcel(completo, codigo = '') {
     try {
-      const r = await fetch(API + '/api/descargar-excel' + (completo ? '?completo=1' : ''), { headers: { 'x-pin': encodeURIComponent(pinA) } });
-      if (r.status === 401) { salir(); return toast('Ingresa de nuevo la contraseña del dueño'); }
-      if (r.status === 429) return toast('Demasiadas descargas. Intenta más tarde.');
-      if (!r.ok) return toast('No se pudo descargar');
+      const r = await fetch(API + '/api/descargar-excel' + (completo ? '?completo=1' : ''), {
+        headers: { 'x-pin': encodeURIComponent(pinA), ...(completo && { 'x-codigo': encodeURIComponent(codigo) }) } });
+      if (r.status === 401) { salir(); toast('Ingresa de nuevo la contraseña del dueño'); return 'sesion'; }
+      if (r.status === 403) return 'codigo';
+      if (r.status === 429) { toast('Demasiados intentos. Intenta más tarde.'); return 'limite'; }
+      if (!r.ok) { toast('No se pudo descargar'); return 'error'; }
       const url = URL.createObjectURL(await r.blob());
       const a = Object.assign(document.createElement('a'), { href: url, download: completo ? 'clientes_putadelicia_COMPLETO.xlsx' : 'clientes_putadelicia.xlsx' });
       document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    } catch { toast('No hay conexión con el servidor.'); }
+      return 'ok';
+    } catch { toast('No hay conexión con el servidor.'); return 'error'; }
   }
+  const xlModal = on => {
+    const m = $('#xl-modal'); m.classList.toggle('hidden', !on); m.classList.toggle('flex', on);
+    $('#xl-codigo').value = ''; $('#xl-error').textContent = ''; if (on) $('#xl-codigo').focus();
+  };
   $('#a-excel').onclick = () => bajarExcel(false);
-  $('#a-excel-full').onclick = () => bajarExcel(true);
+  $('#a-excel-full').onclick = () => {
+    if (confirm('Este Excel incluye nombre, WhatsApp, correo y fecha de nacimiento completos de tus clientes. Guárdalo en un lugar seguro y no lo envíes por chat. ¿Continuar?')) xlModal(true);
+  };
+  $('#xl-cancelar').onclick = () => xlModal(false);
+  $('#xl-form').onsubmit = async e => {
+    e.preventDefault();
+    const codigo = $('#xl-codigo').value.trim();
+    if (!codigo) return $('#xl-error').textContent = 'Escribe tu código de recuperación.';
+    const r = await bajarExcel(true, codigo);
+    if (r === 'codigo') $('#xl-error').textContent = 'Código incorrecto.'; else xlModal(false);
+  };
 
   return { enter: entrar };
 })();

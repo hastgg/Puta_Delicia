@@ -200,56 +200,47 @@ tailwind.config = { theme: { extend: {
             <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           </button>
         </div>
-        <div id="a-sug" class="hidden mt-3 clist" aria-label="Resultados de la búsqueda" aria-live="polite"></div>
-
-        <!-- Aviso: aún no hay código de recuperación -->
-        <div id="a-aviso" class="hidden mt-4 rounded-xl border border-ember/60 bg-[#2a1d08] p-3 text-sm">
-          <b class="text-ember">Aún no tienes código de recuperación.</b> Genéralo ahora: es lo que te permite volver a entrar si olvidas tu contraseña.
-          <button id="a-aviso-ir" type="button" class="underline ml-1">Ir a Seguridad</button>
+        <div id="a-sug" class="hidden mt-3" aria-label="Resultados de la búsqueda" aria-live="polite">
+          <div id="a-sug-l" class="clist"></div>
+          <div id="a-sug-p" class="pager hidden"></div>
         </div>
 
-        <!-- Seguridad: contraseña, PIN de caja, código de recuperación y bitácora -->
+        <!-- Seguridad: contraseña, PIN de caja y bitácora -->
         <div id="a-seg" class="hidden mt-5">
           <button id="as-back" type="button" class="text-sm text-[#A3A3A3] underline">← Volver al panel</button>
           <h2 class="font-title text-3xl mt-3">SEGURIDAD</h2>
           <p id="as-estado" class="text-[#A3A3A3] text-sm mt-1"></p>
 
-          <div class="grid md:grid-cols-2 gap-4 mt-4">
-            <form id="sc-form" class="bg-card border border-[#2a2a2a] rounded-2xl p-5" novalidate>
-              <h3 class="font-display text-xl tracking-wider">CONTRASEÑA DEL DUEÑO</h3>
+          <div class="grid md:grid-cols-2 gap-4 mt-4 items-start">
+            <details class="panel acc"><summary><span class="acc-t"><h3>Contraseña del dueño</h3><span class="sub">Cambiar la contraseña del panel</span></span></summary>
+            <form id="sc-form" class="acc-body" novalidate>
               <input id="sc-actual" type="password" class="field mt-3" placeholder="Contraseña actual" autocomplete="current-password">
               <input id="sc-nueva" type="password" class="field mt-2" placeholder="Contraseña nueva" autocomplete="new-password">
               <input id="sc-nueva2" type="password" class="field mt-2" placeholder="Repite la contraseña nueva" autocomplete="new-password">
               <p class="text-xs text-[#6b6b6b] mt-2">Mínimo 10 caracteres, con mayúscula, minúscula, número y símbolo. Sin secuencias (1234) ni palabras comunes.</p>
               <p id="sc-msg" class="text-sm min-h-[1.25rem] mt-2" role="alert"></p>
               <button class="btn btn-red mt-1" type="submit">CAMBIAR CONTRASEÑA</button>
-            </form>
+            </form></details>
 
-            <form id="sp-form" class="bg-card border border-[#2a2a2a] rounded-2xl p-5" novalidate>
-              <h3 class="font-display text-xl tracking-wider">PIN DE CAJA (PERSONAL)</h3>
-              <p class="text-xs text-[#A3A3A3] mt-1">Solo tú puedes cambiarlo. El personal usa este PIN para sumar visitas y canjear.</p>
+            <details class="panel acc"><summary><span class="acc-t"><h3>PIN de caja (personal)</h3><span class="sub">Solo tú puedes cambiarlo</span></span></summary>
+            <form id="sp-form" class="acc-body" novalidate>
+              <p class="text-xs text-[#A3A3A3]">El personal usa este PIN para sumar visitas y canjear.</p>
               <input id="sp-actual" type="password" class="field mt-3" placeholder="Tu contraseña de dueño" autocomplete="current-password">
               <input id="sp-nuevo" type="password" inputmode="numeric" class="field mt-2" placeholder="PIN de caja nuevo (mín. 6 dígitos)" autocomplete="off">
               <input id="sp-nuevo2" type="password" inputmode="numeric" class="field mt-2" placeholder="Repite el PIN nuevo" autocomplete="off">
               <p class="text-xs text-[#6b6b6b] mt-2">Solo números, mínimo 6. No se aceptan 123456, 111111, 121212 ni combinaciones parecidas.</p>
               <p id="sp-msg" class="text-sm min-h-[1.25rem] mt-2" role="alert"></p>
               <button class="btn btn-red mt-1" type="submit">CAMBIAR PIN DE CAJA</button>
-            </form>
+            </form></details>
           </div>
 
-          <form id="sk-form" class="bg-card border border-[#2a2a2a] rounded-2xl p-5 mt-4" novalidate>
-            <h3 class="font-display text-xl tracking-wider">CÓDIGO DE RECUPERACIÓN</h3>
-            <p class="text-xs text-[#A3A3A3] mt-1">Si olvidas tu contraseña, este código te deja crear una nueva sin ayuda. Se muestra <b class="text-white">una sola vez</b> y sirve <b class="text-white">una sola vez</b>. Si generas uno nuevo, el anterior deja de servir.</p>
-            <div class="flex flex-wrap gap-2 mt-3">
-              <input id="sk-actual" type="password" class="field !py-3 flex-1 min-w-[220px]" placeholder="Tu contraseña de dueño" autocomplete="current-password">
-              <button class="btn btn-red !w-auto px-5 !py-3" type="submit">GENERAR CÓDIGO NUEVO</button>
+          <details class="panel acc mt-4">
+            <summary><span class="acc-t"><h3>Bitácora de seguridad</h3><span id="as-sub" class="sub">Cada cambio y cada uso del código, con fecha e IP</span></span></summary>
+            <div class="acc-body">
+              <ul id="as-bit" class="space-y-2 text-sm"></ul>
+              <div id="as-pag" class="pager hidden"></div>
             </div>
-            <p id="sk-msg" class="text-sm min-h-[1.25rem] mt-2" role="alert"></p>
-          </form>
-
-          <h3 class="font-display text-xl tracking-wider mt-6">BITÁCORA DE SEGURIDAD</h3>
-          <p class="text-xs text-[#A3A3A3]">Cada cambio y cada uso del código, con fecha e IP. Las últimas 30.</p>
-          <ul id="as-bit" class="mt-3 space-y-2 text-sm"></ul>
+          </details>
         </div>
 
         <!-- Panel general -->
@@ -266,6 +257,7 @@ tailwind.config = { theme: { extend: {
               <button type="button" data-rango="todo" aria-pressed="false">Todo</button>
             </div>
           </div>
+          <div class="flex justify-end mt-3"><button id="a-todo" type="button" class="acc-all" data-acc="#a-resumen">Expandir todo</button></div>
 
           <!-- RESUMEN -->
           <div id="a-resumen" class="mt-5">
@@ -279,36 +271,47 @@ tailwind.config = { theme: { extend: {
 
             <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
               <!-- Clientes: nombre y calificación general -->
-              <div class="panel order-first lg:order-last">
-                <div class="flex items-baseline justify-between">
-                  <h3>Clientes</h3><span id="l-total" class="sub"></span>
+              <details class="panel acc order-first lg:order-last">
+                <summary><span class="acc-t"><h3>Clientes</h3><span id="l-total" class="sub">Lista y calificación</span></span></summary>
+                <div class="acc-body">
+                  <div id="l-lista" class="clist"></div>
+                  <div id="l-pag" class="pager hidden"></div>
+                  <p id="l-nota" class="sub mt-2 hidden"></p>
                 </div>
-                <div id="l-lista" class="clist mt-3 max-h-72 lg:max-h-[620px]"></div>
-                <p id="l-nota" class="sub mt-2 hidden"></p>
-              </div>
+              </details>
 
-              <div class="lg:col-span-2 grid md:grid-cols-2 gap-4">
-                <div class="panel md:col-span-2">
-                  <h3>Registros y asistencia</h3><p class="sub">Clientes nuevos y clientes que vinieron, por día</p>
-                  <div class="chart-box mt-3"><canvas id="ch-serie" role="img" aria-label="Barras de clientes nuevos y clientes que vinieron por día"></canvas><p class="chart-empty">Sin datos en este periodo</p></div>
-                </div>
-                <div class="panel">
-                  <h3>Clientes activos</h3><p class="sub">Con al menos una visita en el periodo</p>
-                  <div class="chart-box mt-3"><canvas id="ch-activos" role="img" aria-label="Torta de clientes activos frente a inactivos"></canvas><p class="chart-empty">Aún no hay clientes</p></div>
-                </div>
-                <div class="panel">
-                  <h3>Horas más llenas</h3><p id="h-pico" class="sub">Visitas por hora del día</p>
-                  <div class="chart-box mt-3"><canvas id="ch-horas" role="img" aria-label="Barras de visitas por hora del día"></canvas><p class="chart-empty">Sin visitas en este periodo</p></div>
-                </div>
-                <div class="panel">
-                  <h3>Calificación general</h3><p id="c-resp" class="sub">De 1 a 5 estrellas</p>
-                  <div class="chart-box mt-3"><canvas id="ch-cal-pie" role="img" aria-label="Torta de calificaciones generales de 1 a 5"></canvas><p class="chart-empty">Nadie ha calificado en este periodo</p></div>
-                </div>
-                <div class="panel">
-                  <h3>Servicio, comida y lugar</h3>
-                  <div id="c-medias" class="grid grid-cols-3 gap-2 mt-2"></div>
-                  <div class="chart-box mt-3"><canvas id="ch-cal-bar" role="img" aria-label="Barras de calificaciones de 1 a 5 por servicio, comida y lugar"></canvas><p class="chart-empty">Nadie ha calificado en este periodo</p></div>
-                </div>
+              <div class="lg:col-span-2 grid md:grid-cols-2 gap-4 items-start">
+                <details class="panel acc md:col-span-2">
+                  <summary><span class="acc-t"><h3>Registros y asistencia</h3><span class="sub">Clientes nuevos y clientes que vinieron, por día</span></span></summary>
+                  <div class="acc-body">
+                    <div class="chart-box"><canvas id="ch-serie" role="img" aria-label="Barras de clientes nuevos y clientes que vinieron por día"></canvas><p class="chart-empty">Sin datos en este periodo</p></div>
+                  </div>
+                </details>
+                <details class="panel acc">
+                  <summary><span class="acc-t"><h3>Clientes activos</h3><span class="sub">Con al menos una visita en el periodo</span></span></summary>
+                  <div class="acc-body">
+                    <div class="chart-box"><canvas id="ch-activos" role="img" aria-label="Torta de clientes activos frente a inactivos"></canvas><p class="chart-empty">Aún no hay clientes</p></div>
+                  </div>
+                </details>
+                <details class="panel acc">
+                  <summary><span class="acc-t"><h3>Horas más llenas</h3><span id="h-pico" class="sub">Visitas por hora del día</span></span></summary>
+                  <div class="acc-body">
+                    <div class="chart-box"><canvas id="ch-horas" role="img" aria-label="Barras de visitas por hora del día"></canvas><p class="chart-empty">Sin visitas en este periodo</p></div>
+                  </div>
+                </details>
+                <details class="panel acc">
+                  <summary><span class="acc-t"><h3>Calificación general</h3><span id="c-resp" class="sub">De 1 a 5 estrellas</span></span></summary>
+                  <div class="acc-body">
+                    <div class="chart-box"><canvas id="ch-cal-pie" role="img" aria-label="Torta de calificaciones generales de 1 a 5"></canvas><p class="chart-empty">Nadie ha calificado en este periodo</p></div>
+                  </div>
+                </details>
+                <details class="panel acc">
+                  <summary><span class="acc-t"><h3>Servicio, comida y lugar</h3><span class="sub">Promedio y reparto de estrellas</span></span></summary>
+                  <div class="acc-body">
+                    <div id="c-medias" class="grid grid-cols-3 gap-2"></div>
+                    <div class="chart-box mt-3"><canvas id="ch-cal-bar" role="img" aria-label="Barras de calificaciones de 1 a 5 por servicio, comida y lugar"></canvas><p class="chart-empty">Nadie ha calificado en este periodo</p></div>
+                  </div>
+                </details>
               </div>
             </div>
           </div>
@@ -326,16 +329,28 @@ tailwind.config = { theme: { extend: {
               <label class="pick pick-a"><span><i></i> Periodo A</span><input id="a-fa" type="date" class="field !py-2.5"><small id="a-ta"></small></label>
               <label class="pick pick-b"><span><i></i> Periodo B</span><input id="a-fb" type="date" class="field !py-2.5"><small id="a-tb"></small></label>
             </div>
-            <div class="panel mt-4 !p-0 overflow-x-auto">
-              <table class="cmp" aria-label="Comparativa entre periodos">
-                <thead><tr><th></th><th class="ca">A</th><th class="cb">B</th><th>Cambio</th></tr></thead>
-                <tbody id="a-tabla"></tbody>
-              </table>
-            </div>
-            <div class="grid lg:grid-cols-3 gap-4 mt-4">
-              <div class="panel"><h3>Actividad</h3><div class="chart-box mt-3"><canvas id="ch-cmp-act" role="img" aria-label="Barras de actividad de A frente a B"></canvas><p class="chart-empty">Sin datos</p></div></div>
-              <div class="panel"><h3>Calificaciones</h3><div class="chart-box mt-3"><canvas id="ch-cmp-cal" role="img" aria-label="Barras de calificaciones de A frente a B"></canvas><p class="chart-empty">Nadie calificó en estos periodos</p></div></div>
-              <div class="panel"><h3>Visitas por hora</h3><div class="chart-box mt-3"><canvas id="ch-cmp-hor" role="img" aria-label="Barras de visitas por hora de A frente a B"></canvas><p class="chart-empty">Sin visitas en estos periodos</p></div></div>
+            <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
+              <details class="panel acc lg:col-span-3">
+                <summary><span class="acc-t"><h3>Tabla comparativa</h3><span class="sub">Todas las cifras de A frente a B</span></span></summary>
+                <div class="acc-body overflow-x-auto">
+                  <table class="cmp" aria-label="Comparativa entre periodos">
+                    <thead><tr><th></th><th class="ca">A</th><th class="cb">B</th><th>Cambio</th></tr></thead>
+                    <tbody id="a-tabla"></tbody>
+                  </table>
+                </div>
+              </details>
+              <details class="panel acc">
+                <summary><span class="acc-t"><h3>Actividad</h3><span class="sub">Nuevos, visitas, distintos y canjes</span></span></summary>
+                <div class="acc-body"><div class="chart-box"><canvas id="ch-cmp-act" role="img" aria-label="Barras de actividad de A frente a B"></canvas><p class="chart-empty">Sin datos</p></div></div>
+              </details>
+              <details class="panel acc">
+                <summary><span class="acc-t"><h3>Calificaciones</h3><span class="sub">General, servicio, comida y lugar</span></span></summary>
+                <div class="acc-body"><div class="chart-box"><canvas id="ch-cmp-cal" role="img" aria-label="Barras de calificaciones de A frente a B"></canvas><p class="chart-empty">Nadie calificó en estos periodos</p></div></div>
+              </details>
+              <details class="panel acc">
+                <summary><span class="acc-t"><h3>Visitas por hora</h3><span class="sub">Cuándo se llena el local</span></span></summary>
+                <div class="acc-body"><div class="chart-box"><canvas id="ch-cmp-hor" role="img" aria-label="Barras de visitas por hora de A frente a B"></canvas><p class="chart-empty">Sin visitas en estos periodos</p></div></div>
+              </details>
             </div>
           </div>
         </div>
@@ -346,7 +361,8 @@ tailwind.config = { theme: { extend: {
           <h2 id="ac-name" class="font-title text-3xl mt-3 break-words"></h2>
           <p id="ac-meta" class="text-[#A3A3A3] text-sm mt-1"></p>
 
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+          <div class="flex justify-end mt-3"><button type="button" class="acc-all" data-acc="#a-cli">Expandir todo</button></div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
             <div class="kpi"><span>Veces que ha venido</span><b id="ac-vis">–</b><small id="ac-vis-s"></small></div>
             <div class="kpi"><span>Premios canjeados</span><b id="ac-can">–</b><small id="ac-can-s"></small></div>
             <div class="kpi"><span>Tarjeta actual</span><b id="ac-tar">–</b><small>visitas acumuladas</small></div>
@@ -354,18 +370,18 @@ tailwind.config = { theme: { extend: {
           </div>
 
           <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
-            <div class="panel">
-              <h3>Premios canjeados</h3>
-              <ul id="ac-canjes" class="mt-3 space-y-2 text-sm max-h-64 overflow-y-auto"></ul>
-            </div>
-            <div class="panel">
-              <h3>Sus calificaciones</h3><p class="sub">De 1 a 5 estrellas</p>
-              <div class="chart-box mt-3"><canvas id="ac-pie" role="img" aria-label="Torta de las calificaciones generales del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div>
-            </div>
-            <div class="panel">
-              <h3>Promedio por aspecto</h3><p class="sub">Servicio, comida y lugar</p>
-              <div class="chart-box mt-3"><canvas id="ac-bar" role="img" aria-label="Barras del promedio de servicio, comida y lugar del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div>
-            </div>
+            <details class="panel acc">
+              <summary><span class="acc-t"><h3>Premios canjeados</h3><span class="sub">Fecha de cada cortesía</span></span></summary>
+              <div class="acc-body"><ul id="ac-canjes" class="space-y-2 text-sm max-h-64 overflow-y-auto"></ul></div>
+            </details>
+            <details class="panel acc">
+              <summary><span class="acc-t"><h3>Sus calificaciones</h3><span class="sub">De 1 a 5 estrellas</span></span></summary>
+              <div class="acc-body"><div class="chart-box"><canvas id="ac-pie" role="img" aria-label="Torta de las calificaciones generales del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div></div>
+            </details>
+            <details class="panel acc">
+              <summary><span class="acc-t"><h3>Promedio por aspecto</h3><span class="sub">Servicio, comida y lugar</span></span></summary>
+              <div class="acc-body"><div class="chart-box"><canvas id="ac-bar" role="img" aria-label="Barras del promedio de servicio, comida y lugar del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div></div>
+            </details>
           </div>
 
           <!-- Comentarios: cerrados por defecto para no ser intrusivos -->
@@ -379,7 +395,7 @@ tailwind.config = { theme: { extend: {
           <span class="flex gap-4">
             <button id="a-excel" class="underline" title="Datos de contacto ocultos (3*****67, a***@correo.com)">Descargar Excel</button>
             <button id="a-excel-full" class="underline" title="Incluye WhatsApp, correo y fecha de nacimiento completos">Excel completo</button>
-            <button id="a-seg-btn" class="underline" title="Contraseña, PIN de caja y código de recuperación">Seguridad</button>
+            <button id="a-seg-btn" class="underline" title="Contraseña y PIN de caja">Seguridad</button>
           </span>
           <button id="a-salir" class="underline">Salir del panel</button>
         </div>
@@ -439,6 +455,18 @@ tailwind.config = { theme: { extend: {
     <label class="flex items-start gap-2 mt-4 text-sm cursor-pointer"><input id="cod-ok" type="checkbox" class="mt-1"> Ya lo guardé en un lugar seguro</label>
     <button id="cod-listo" type="button" class="btn btn-red mt-4" disabled>LISTO</button>
   </div>
+</div>
+
+<!-- ============ EXCEL COMPLETO: pide el código de recuperación ============ -->
+<div id="xl-modal" class="fixed inset-0 z-[66] hidden items-center justify-center bg-black/90 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="xl-titulo">
+  <form id="xl-form" class="w-full max-w-[420px] bg-card border border-fire rounded-3xl p-6">
+    <h2 id="xl-titulo" class="font-title text-2xl text-center">EXCEL COMPLETO</h2>
+    <p class="text-xs text-[#A3A3A3] mt-2 text-center">Escribe tu código de recuperación para descargar los datos completos. El código no se gasta.</p>
+    <input id="xl-codigo" type="text" autocomplete="off" class="mt-4 w-full rounded-xl bg-black border border-[#333] py-3 px-3 text-center font-mono tracking-widest" placeholder="XXXX-XXXX-XXXX-XXXX">
+    <p id="xl-error" class="text-ember text-xs mt-2 min-h-[1rem] text-center"></p>
+    <button type="submit" class="btn btn-red mt-3">DESCARGAR</button>
+    <button id="xl-cancelar" type="button" class="btn btn-white mt-2">CANCELAR</button>
+  </form>
 </div>
 
 <!-- ============ ESCÁNER DE QR (cámara) ============ -->
