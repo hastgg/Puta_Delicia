@@ -422,11 +422,12 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
 // ⚙️ Puntos de integración: reemplaza el cuerpo de estas dos funciones.
 //   WhatsApp → Meta Cloud API o Twilio. Correo → Resend o Brevo.
 async function enviarWhatsApp(numero, texto) {
-  if (SIMULACION) return console.log(`[SIMULADO] WhatsApp → +${numero}: ${texto}`);
+  // En los logs nunca va el dato personal completo (los logs del hosting se guardan): solo enmascarado y el largo del mensaje
+  if (SIMULACION) return console.log(`[SIMULADO] WhatsApp → +${maskWhats(numero)} (${texto.length} caracteres)`);
   throw new Error('Integra aquí tu proveedor de WhatsApp (Meta/Twilio).');
 }
 async function enviarCorreo(correo, asunto, texto) {
-  if (SIMULACION) return console.log(`[SIMULADO] Correo → ${correo} | ${asunto}: ${texto}`);
+  if (SIMULACION) return console.log(`[SIMULADO] Correo → ${maskCorreo(correo)} | ${asunto} (${texto.length} caracteres)`);
   throw new Error('Integra aquí tu proveedor de correo (Resend/Brevo).');
 }
 

@@ -197,7 +197,8 @@ $('#s-unlock').onclick = async () => {
   if (!r.ok) return toast(r.error || 'PIN incorrecto');
   pin = p; sessionStorage.setItem('pd_pin', p); $('#s-pin').value = ''; showStaff(true);
 };
-$('#s-close').onclick = () => { pin = ''; staffId = null; sessionStorage.removeItem('pd_pin'); pintarStaff(null); showStaff(false); };
+function cerrarCaja() { pin = ''; staffId = null; sessionStorage.removeItem('pd_pin'); $('#s-code').value = ''; pintarStaff(null); showStaff(false); }
+$('#s-close').onclick = cerrarCaja;
 $('#s-pin').onkeydown = e => { if (e.key === 'Enter') $('#s-unlock').click(); };
 $('#s-code').onkeydown = e => { if (e.key === 'Enter') $('#s-search').click(); };
 
@@ -334,14 +335,15 @@ function mostrarCaja(on) {
   $('#tab-caja').hidden = !on;
   $('#toro-secreto').classList.toggle('text-fire', on);
 $('#toro-secreto').classList.toggle('text-[#2b2b2b]', !on);
-  try { on ? localStorage.setItem('pd_caja', '1') : localStorage.removeItem('pd_caja'); } catch {}
+  try { on ? sessionStorage.setItem('pd_caja', '1') : sessionStorage.removeItem('pd_caja'); } catch {}   // solo mientras la pestaña siga abierta
 }
 $('#toro-secreto').onclick = () => {
   const estabaVisible = !$('#tab-caja').hidden;
   mostrarCaja(!estabaVisible);
   if (estabaVisible && ($('#view-caja').classList.contains('active') || $('#view-admin').classList.contains('active'))) tab('registro');
 };
-try { mostrarCaja(localStorage.getItem('pd_caja') === '1'); } catch {}
+try { localStorage.removeItem('pd_caja'); } catch {}      // limpia el valor viejo que dejaba el torito encendido para siempre
+try { mostrarCaja(sessionStorage.getItem('pd_caja') === '1'); } catch {}
 
 /* ================= Admin / Dashboard ================= */
 // Pantalla del dueño: resumen con gráficas, comparativas, ficha de cada cliente y descarga del Excel.
@@ -401,7 +403,7 @@ const Admin = (() => {
 
   /* ---------- acceso y llamadas ---------- */
   const vista = abierta => { $('#a-lock').classList.toggle('hidden', abierta); $('#a-main').classList.toggle('hidden', !abierta); };
-  function salir() { pinA = ''; sessionStorage.removeItem('pd_admin'); vista(false); }
+  function salir() { pinA = ''; sessionStorage.removeItem('pd_admin'); try { xlModal(false); } catch {} vista(false); }
   async function pedir(ruta) {
     const r = await api(ruta, { pin: pinA });
     if (r.status === 401) { salir(); toast('Ingresa de nuevo la contraseña del dueño'); return null; }
@@ -806,5 +808,64 @@ const Admin = (() => {
     if (r === 'codigo') $('#xl-error').textContent = 'Código incorrecto.'; else xlModal(false);
   };
 
-  return { enter: entrar };
+  return { enter: entrar, salir, activa: () => !!pinA };
+})();
+
+/* ================= Cierre automático de sesión por inactividad =================
+   Aplica a clientes, caja (staff) y panel del dueño (admin).
+   · A los 30 min sin actividad aparece el aviso «¿Sigues ahí?».
+   · Si en 2 min no se pulsa «Extender sesión», se cierran todas las sesiones.
+   Se usa la hora real (no un contador) para que funcione aunque la pestaña esté en segundo plano
+   o el equipo se haya suspendido, y se comparte entre pestañas con localStorage. */
+const Inactividad = (() => {
+  const LIMITE_MS = 30 * 60 * 1000;      // tiempo sin actividad antes del aviso
+  const AVISO_MS = 2 * 60 * 1000;        // tiempo para responder al aviso
+  const CLAVE = 'pd_activo';
+  let ultimo = Date.now(), escrito = 0, avisando = false;
+
+  const haySesion = () => !!(Me.get() || pin || Admin.activa());
+  const leer = () => { try { return Math.max(ultimo, +localStorage.getItem(CLAVE) || 0); } catch { return ultimo; } };
+  function marcar(forzar) {
+    const ahora = Date.now(); ultimo = ahora;
+    if (forzar || ahora - escrito > 2000) { escrito = ahora; try { localStorage.setItem(CLAVE, String(ahora)); } catch {} }
+  }
+  function aviso(on) {
+    const m = $('#idle-modal'); avisando = on;
+    m.classList.toggle('hidden', !on); m.classList.toggle('flex', on);
+    if (on) $('#idle-extender').focus();
+  }
+  function cerrarTodo(conAviso) {
+    const habia = haySesion();
+    // Cliente
+    Me.clear(); qrFor = null; Rate.close(); Rate.id = null; $('#qr').innerHTML = '';
+    // Caja y dueño
+    cerrarCaja(); Admin.salir();
+    aviso(false);
+    if ($('#view-tarjeta').classList.contains('active')) tab('registro'); else renderCard();
+    if (habia && conAviso) toast('Sesión cerrada por inactividad');
+  }
+  function fmt(ms) { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  function revisar() {
+    if (!haySesion()) { if (avisando) aviso(false); return; }
+    const inactivo = Date.now() - leer();
+    if (inactivo >= LIMITE_MS + AVISO_MS) return cerrarTodo(true);
+    if (inactivo >= LIMITE_MS) {
+      if (!avisando) aviso(true);
+      $('#idle-tiempo').textContent = fmt(LIMITE_MS + AVISO_MS - inactivo);
+    } else if (avisando) aviso(false);     // se extendió desde otra pestaña
+  }
+  function extender() { marcar(true); aviso(false); toast('Sesión extendida'); }
+
+  // Cualquier interacción real cuenta como actividad (salvo mientras el aviso está abierto: ahí hay que pulsar el botón)
+  ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(ev =>
+    document.addEventListener(ev, () => { if (!avisando) marcar(); }, { capture: true, passive: true }));
+  $('#idle-extender').onclick = extender;
+  $('#idle-salir').onclick = () => cerrarTodo(false);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
+  window.addEventListener('storage', e => { if (e.key === CLAVE) revisar(); });
+
+  // Al abrir la página: si ya pasó el tiempo completo mientras estaba cerrada, no se restaura la sesión
+  revisar();
+  setInterval(revisar, 1000);
+  return { extender };
 })();

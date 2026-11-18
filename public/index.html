@@ -480,6 +480,18 @@ tailwind.config = { theme: { extend: {
   <div class="relative p-6 pb-8"><button id="scan-close" type="button" class="btn btn-white max-w-[360px] mx-auto">CANCELAR</button></div>
 </div>
 
+<!-- ============ AVISO DE INACTIVIDAD ============ -->
+<div id="idle-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/85 backdrop-blur-sm p-6" role="alertdialog" aria-modal="true" aria-labelledby="idle-title" aria-describedby="idle-desc">
+  <div class="w-full max-w-[400px] bg-card border border-fire rounded-3xl p-6 text-center shadow-[0_0_40px_rgba(230,46,45,.35)]">
+    <p class="text-ember text-xs tracking-[.25em]">SESIÓN INACTIVA</p>
+    <h2 id="idle-title" class="font-title text-2xl mt-1">¿SIGUES AHÍ?</h2>
+    <p id="idle-desc" class="text-[#A3A3A3] text-sm mt-2">Por seguridad, tu sesión se cerrará automáticamente en</p>
+    <p id="idle-tiempo" class="font-display text-5xl text-ember my-3" aria-live="off">2:00</p>
+    <button id="idle-extender" type="button" class="w-full bg-fire hover:bg-fired text-white font-display text-xl tracking-wider rounded-xl py-3 transition-colors">EXTENDER SESIÓN</button>
+    <button id="idle-salir" type="button" class="mt-3 text-[#A3A3A3] text-sm underline">Cerrar sesión ahora</button>
+  </div>
+</div>
+
 <div id="toast" class="fixed left-1/2 bottom-6 -translate-x-1/2 translate-y-24 bg-white text-black font-semibold text-sm px-5 py-3 rounded-xl shadow-xl transition-transform duration-300 z-[60]"></div>
     <button id="toro-secreto" type="button" aria-label="Puta Delicia BBQ" class="mt-5 mb-4 p-3 text-[#2b2b2b] transition-colors">
     <svg viewBox="0 0 200 64.7" class="w-14" aria-hidden="true"><use href="#toro"/></svg>
