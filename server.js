@@ -328,6 +328,10 @@ app.post('/api/calificar', limCalificar, ah(async (req, res) => {
 }));
 
 /* 4) Descargar Excel (dueño): se genera en el momento --------- */
+// En el Excel ENMASCARADO el ID real no sale (con él se podría consultar el nombre o buscar al cliente en caja).
+// Se cambia por un código irreversible: el mismo cliente siempre tiene el mismo en las 3 hojas y en cada descarga,
+// pero no sirve en ninguna ruta de la app ni se puede revertir sin la DATA_KEY. El Excel completo conserva el ID real.
+const idExcel = (id, completoXl) => (completoXl ? id : 'C-' + K.hash('excel-id', id).slice(0, 10).toUpperCase());
 function hoja(wb, nombre, columnas) {
   const ws = wb.addWorksheet(nombre, { views: [{ state: 'frozen', ySplit: 1 }] });
   ws.columns = columnas;
@@ -359,7 +363,7 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Puta Delicia BBQ House';
   const wc = hoja(wb, 'Clientes', [
-    { header: 'ID', key: 'id', width: 12 }, { header: 'Nombre', key: 'nombre', width: 28 },
+    { header: 'ID', key: 'id', width: 15 }, { header: 'Nombre', key: 'nombre', width: 28 },
     { header: 'WhatsApp', key: 'whatsapp', width: 16 }, { header: 'Correo', key: 'correo', width: 30 },
     { header: 'Fecha de nacimiento', key: 'nacimiento', width: 18 },
     { header: 'Acepta notificaciones', key: 'acepta', width: 22 }, { header: 'Puntos', key: 'puntos', width: 9 },
@@ -369,7 +373,7 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
   for (const raw of await clientes.find().sort({ fecha_registro: 1 }).toArray()) {
     const c = abrir(raw);
     wc.addRow({
-      id: c._id, nombre: completoXl ? c.nombre : maskNombre(c.nombre),
+      id: idExcel(c._id, completoXl), nombre: completoXl ? c.nombre : maskNombre(c.nombre),
       whatsapp: completoXl ? c.whatsapp : maskWhats(c.whatsapp), correo: completoXl ? c.correo : maskCorreo(c.correo),
       nacimiento: completoXl ? (c.fecha_nacimiento || '') : maskNac(c.fecha_nacimiento),
       acepta: c.acepta_notificaciones ? 'SÍ' : 'NO', puntos: c.puntos,
@@ -378,15 +382,15 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
     });
   }
   const wm = hoja(wb, 'Movimientos', [
-    { header: 'Fecha', key: 'fecha', width: 20 }, { header: 'ID', key: 'id', width: 12 },
+    { header: 'Fecha', key: 'fecha', width: 20 }, { header: 'ID', key: 'id', width: 15 },
     { header: 'Nombre', key: 'nombre', width: 28 }, { header: 'Movimiento', key: 'tipo', width: 14 },
     { header: 'Puntos', key: 'puntos', width: 9 }, { header: 'Detalle', key: 'detalle', width: 40 },
   ]);
   for (const m of await movimientos.find().sort({ fecha: 1 }).toArray()) 
-    wm.addRow({ ...m, nombre: completoXl ? m.nombre : maskNombre(m.nombre), fecha: fmt(m.fecha) });
+    wm.addRow({ ...m, id: idExcel(m.id, completoXl), nombre: completoXl ? m.nombre : maskNombre(m.nombre), fecha: fmt(m.fecha) });
 
   const wk = hoja(wb, 'Calificación y comentarios', [
-    { header: 'Fecha', key: 'fecha', width: 20 }, { header: 'ID', key: 'id', width: 12 },
+    { header: 'Fecha', key: 'fecha', width: 20 }, { header: 'ID', key: 'id', width: 15 },
     { header: 'Nombre', key: 'nombre', width: 28 }, { header: 'Estado', key: 'estado', width: 14 },
     { header: 'Calificación general', key: 'general', width: 20 },
     { header: 'Servicio', key: 'servicio', width: 11 }, { header: 'Comida', key: 'comida', width: 11 },
@@ -398,7 +402,7 @@ app.get('/api/descargar-excel', L.limitar('excel', { max: 10, ventanaMs: H }), s
     const estado = !k.estado || k.estado === 'CALIFICADA' ? 'Calificó'
       : (k.estado === 'PENDIENTE' && k.vence > ahora) ? 'Pendiente' : 'No calificó';
     const f = wk.addRow({
-      fecha: fmt(k.fecha), id: k.id, nombre: completoXl ? k.nombre : maskNombre(k.nombre), estado,
+      fecha: fmt(k.fecha), id: idExcel(k.id, completoXl), nombre: completoXl ? k.nombre : maskNombre(k.nombre), estado,
       general: estado === 'Calificó' ? k.general : '', servicio: k.servicio ?? '', comida: k.comida ?? '', lugar: k.lugar ?? '',
       comentario: k.comentario || '',
     });

@@ -818,7 +818,7 @@ const Admin = (() => {
    Se usa la hora real (no un contador) para que funcione aunque la pestaña esté en segundo plano
    o el equipo se haya suspendido, y se comparte entre pestañas con localStorage. */
 const Inactividad = (() => {
-  const LIMITE_MS = 30 * 60 * 1000;      // tiempo sin actividad antes del aviso
+  const LIMITE_MS = 10 * 60 * 1000;      // tiempo sin actividad antes del aviso
   const AVISO_MS = 2 * 60 * 1000;        // tiempo para responder al aviso
   const CLAVE = 'pd_activo';
   let ultimo = Date.now(), escrito = 0, avisando = false;
