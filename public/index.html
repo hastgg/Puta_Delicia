@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>Puta Delicia BBQ House · Club de Fidelidad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rye&family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { fire:'#E62E2D', fired:'#B91C1C', card:'#121212', ink:'#1A1A1A', ember:'#F59E0B' },
+  fontFamily: { title:['Rye','serif'], display:['"Bebas Neue"','sans-serif'], sans:['Inter','sans-serif'] }
+}}};
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="text-white min-h-screen flex justify-center md:items-center md:p-6">
+
+<!-- Isotipo del toro (se reutiliza en los sellos) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="toro" viewBox="0 0 200 64.7"><path fill="currentColor" d="M101.6 64 98.8 64.1 97.7 63.9 96.4 63.3 95.5 62.5 93.6 59.5 91.1 56.8 90.5 55.5 90.3 54.6 90.3 52.7 90.5 49 90.3 45.7 89.7 42 89.1 39.8 87.7 36.5 85.9 34.1 83.7 31.5 82.8 30.2 81.9 28 80.7 23.3 79.7 21 78.3 18.9 76.7 17.7 75 17 73.2 16.8 70.8 17 62.7 18.4 59.7 18.6 54.9 18.6 49.4 18.1 46.1 17.3 43.7 16.4 38.5 14 25.6 7.6 20.3 5.5 17.5 4.7 14.6 4.1 9.4 3.8 7.4 3.8 5.7 4.1 3.5 4.5 1.7 5.1 0.4 5.3 0.4 4.8 2.6 3.4 7.2 1.5 11.1 0.6 14.6 0.3 19.2 0.5 24.7 1.5 28.6 2.8 39.1 7 45.2 8.8 48.5 9.2 52 9 54.4 8.6 68.2 4.9 71.3 4.5 74.3 4.5 77.8 4.7 84.6 6.6 87.2 6.9 94.6 5 96.2 4.8 97.9 4.8 100.1 5.3 102.7 4.8 105.1 4.9 111 6.6 113.2 6.9 115.2 6.6 119.8 5.4 122.8 4.7 125.5 4.5 129.4 4.5 132 4.9 134.2 5.3 146.7 8.8 148.9 9.1 152.6 9 156.5 8.4 159.6 7.5 169.8 3.4 175.5 1.5 178.1 0.8 182.7 0.4 187.5 0.4 192.6 1.5 196.1 2.8 197.8 3.7 199.4 4.8 199.3 5.2 199.1 5.3 196.3 4.6 193.4 4.1 188.6 3.8 184.3 4.3 181.6 5 177.5 6.3 174 7.8 162.8 13.4 157.4 16 154.5 17.1 151 18 144.9 18.6 141.2 18.6 136.4 18.2 129 17 126.8 16.9 124.6 17 123.7 17.3 122.9 17.7 122.2 18.2 121.3 19.2 119.8 21.8 118.9 24.1 118.1 27.5 117 30.2 115.8 31.9 112.8 35.6 111.9 37 111 38.9 110.1 42 109.5 45.4 109.4 50.5 109.5 54.9 109.1 56.2 108.3 57.5 106 60 104.1 63 102.7 63.8Z"/></symbol>
+  </svg>
+
+<!-- ============ SPLASH ============ -->
+<div id="splash" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center px-6 text-center transition-opacity duration-700">
+  <img src="logo.png" alt="Puta Delicia BBQ" class="w-full max-w-[520px]">
+  <p class="text-[#A3A3A3] tracking-[.3em] text-xs sm:text-sm mt-2 mb-9">CLUB DE FIDELIDAD • TEXAN BBQ</p>
+  <button id="btn-enter" class="btn btn-red max-w-[320px]">ENTRAR AL CLUB BBQ</button>
+</div>
+
+
+<div class="shell w-full max-w-[450px] flex flex-col items-center">
+
+<!-- ============ APP ============ -->
+<div class="shell relative w-full max-w-[450px] min-h-screen md:min-h-[780px] bg-black md:rounded-3xl md:border border-[#262626] md:shadow-[0_0_70px_rgba(230,46,45,.18)] overflow-hidden">
+<img src="logo.png" alt="Puta Delicia BBQ" class="w-48 mx-auto -mt-2">
+  <nav class="flex border-b border-[#262626] text-sm font-semibold">
+    <button data-tab="registro" class="tab flex-1 py-4">Registro</button>
+    <button data-tab="tarjeta"  class="tab flex-1 py-4">Mi tarjeta</button>
+    <button data-tab="caja" id="tab-caja" class="tab flex-1 py-4" hidden>Caja</button>
+  </nav>
+
+  <main class="p-6">
+
+    <!-- REGISTRO -->
+    <section id="view-registro" class="view">
+      <h1 class="font-title text-3xl text-center mt-2">ÚNETE AL CLUB BBQ</h1>
+      <p class="text-[#A3A3A3] text-center text-sm mt-2 mb-7">Acumula 8 visitas y la siguiente va por la casa</p>
+      <form id="form" class="space-y-4" novalidate>
+        <input name="name"  class="field" type="text"  placeholder="Nombre completo" autocomplete="name">
+        <input name="phone" class="field" type="tel"   placeholder="WhatsApp" autocomplete="tel">
+        <input name="email" class="field" type="email" placeholder="Correo electrónico" autocomplete="email">
+        <input name="birth"  class="field" type="text"  placeholder="Fecha de nacimiento" autocomplete="birthdate" onfocus="(this.type='date')" onblur="(this.type='text')">
+        <label class="flex gap-3 items-start text-sm text-[#A3A3A3] cursor-pointer">
+          <input name="consent" type="checkbox" class="accent-fire w-5 h-5 mt-0.5 shrink-0">
+          <span>Acepto recibir notificaciones de eventos y promociones de Puta Delicia</span>
+        </label>
+        <label class="flex gap-3 items-start text-sm text-[#A3A3A3] cursor-pointer">
+          <input name="terms" type="checkbox" class="accent-fire w-5 h-5 mt-0.5 shrink-0">
+          <span>Acepto los <button type="button" data-go="terminos" class="underline text-white">términos y condiciones</button></span>
+        </label>
+        <p id="form-error" class="text-fire text-sm min-h-[1.25rem]" role="alert"></p>
+        <button class="btn btn-red" type="submit">GENERAR MI TARJETA VIP</button>
+      </form>
+      <button type="button" data-go="recuperar" class="block mx-auto mt-5 text-sm text-[#A3A3A3] underline">¿Ya eres miembro? Recupera tu tarjeta</button>
+    </section>
+
+    <!-- RECUPERAR TARJETA -->
+    <section id="view-recuperar" class="view">
+      <h1 class="font-title text-3xl text-center mt-2">RECUPERA TU TARJETA</h1>
+      <p class="text-[#A3A3A3] text-center text-sm mt-2 mb-7">Escribe tu nombre como te registraste y los últimos 4 dígitos de tu WhatsApp</p>
+      <form id="form-recuperar" class="space-y-4" novalidate>
+        <input name="nombre" class="field" type="text" placeholder="Nombre completo" autocomplete="name">
+        <input name="ultimos4" class="field" type="text" inputmode="numeric" maxlength="4" placeholder="Últimos 4 dígitos del WhatsApp" autocomplete="off">
+        <p id="rec-error" class="text-fire text-sm min-h-[1.25rem]" role="alert"></p>
+        <button class="btn btn-red" type="submit">RECUPERAR MI TARJETA</button>
+      </form>
+      <button type="button" data-go="registro" class="block mx-auto mt-5 text-sm text-[#A3A3A3] underline">Volver al registro</button>
+    </section>
+
+    <!-- TARJETA VIP -->
+    <section id="view-tarjeta" class="view">
+      <h1 class="font-title text-3xl text-center mt-2">MI PUTA TARJETA</h1>
+      <div id="card-empty" class="text-center py-16 hidden">
+        <p class="font-title text-2xl mb-2">AÚN NO TIENES TARJETA</p>
+        <p class="text-[#A3A3A3] text-sm mb-6">Regístrate para empezar a sumar visitas.</p>
+        <button class="btn btn-red max-w-[260px] mx-auto" data-go="registro">IR AL REGISTRO</button>
+        <button class="block mx-auto mt-4 text-sm text-[#A3A3A3] underline" data-go="recuperar">Ya soy miembro</button>
+      </div>
+      <div id="card-content" class="hidden">
+        <div class="bg-card border border-fire rounded-2xl p-5 shadow-[0_0_28px_rgba(230,46,45,.35)]">
+          <div class="flex justify-between items-end mb-5">
+            <div>
+              <p class="text-[#A3A3A3] text-xs tracking-widest">MIEMBRO VIP</p>
+              <h2 id="c-name" class="font-title text-2xl leading-tight"></h2>
+            </div>
+            <p id="c-progress" class="font-bold text-fire whitespace-nowrap"></p>
+          </div>
+          <div id="c-stamps" class="grid grid-cols-4 gap-3"></div>
+          <p id="c-reward" class="hidden mt-4 text-center text-ember font-bold text-sm">¡Tu cortesía está lista! Muéstrala en caja.</p>
+        </div>
+        <button id="c-rate" type="button" class="hidden w-full mt-5 rounded-2xl border border-ember text-ember py-3 font-semibold text-sm text-center">
+          <svg viewBox="0 0 24 24" class="inline-block w-5 h-5 mr-1 align-[-4px]" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.4l-5.9 3.3 1.2-6.6L2.5 9.5l6.6-.9z"/></svg>
+          Califica tu última visita
+        </button>
+        <div class="bg-white rounded-2xl p-5 mt-5 text-center text-black">
+          <div id="qr" class="inline-block"></div>
+          <p id="c-code" class="font-title tracking-[.15em] mt-2"></p>
+          <p class="text-xs text-neutral-500 mt-1">Muestra este código en caja</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CAJA / STAFF -->
+    <section id="view-caja" class="view">
+      <h1 class="font-title text-3xl">CAJA</h1>
+
+      <div id="s-lock" class="mt-5">
+        <p class="text-[#A3A3A3] text-sm mb-4">Ingresa el PIN de caja para continuar.</p>
+        <div class="flex gap-2">
+          <input id="s-pin" type="password" inputmode="numeric" class="field !py-3" placeholder="PIN" autocomplete="off">
+          <button id="s-unlock" class="btn btn-red !w-auto px-5 !py-3">ENTRAR</button>
+        </div>
+      </div>
+
+      <div id="s-main" class="hidden">
+        <p class="text-[#A3A3A3] text-sm mt-1 mb-5">Busca al cliente por código, correo, WhatsApp o nombre.</p>
+        <div class="flex gap-2">
+          <input id="s-code" class="field !py-3" placeholder="PD-XXXXXX o correo">
+          <button id="s-scan" type="button" class="btn !w-auto px-3 !py-3 bg-ink border border-[#333] hover:border-fire text-white" aria-label="Escanear QR con la cámara" title="Escanear QR con la cámara">
+            <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><rect x="8" y="8" width="3" height="3" rx=".5"/><rect x="13" y="8" width="3" height="3" rx=".5"/><rect x="8" y="13" width="3" height="3" rx=".5"/><path d="M13 13h3v3"/></svg>
+          </button>
+          <button id="s-search" class="btn btn-red !w-auto px-5 !py-3">BUSCAR</button>
+        </div>
+        <div id="s-results" class="mt-3 space-y-2"></div>
+
+        <div id="s-panel" class="hidden mt-6 bg-card border border-[#450a0a] rounded-2xl p-5">
+          <h2 id="s-name" class="font-title text-2xl"></h2>
+          <p id="s-contact" class="text-[#A3A3A3] text-sm mb-3"></p>
+          <p class="font-title text-4xl text-fire mb-4"><span id="s-visits" class="text-white"></span> / 8 <span class="text-sm text-[#A3A3A3] font-sans font-semibold">VISITAS</span></p>
+          <div id="s-stamps" class="grid grid-cols-4 gap-2 mb-5"></div>
+          <div class="space-y-3">
+            <button id="s-add" class="btn btn-red !py-5 text-lg">+ SUMAR 1 VISITA</button>
+            <button id="s-redeem" class="btn btn-white !py-5 text-lg" disabled>CANJEAR CORTESÍA</button>
+          </div>
+          <button id="s-delete" class="block mx-auto mt-4 text-xs text-[#A3A3A3] underline">Eliminar cliente (dueño)</button>
+        </div>
+        <p id="s-empty" class="text-center text-[#A3A3A3] text-sm mt-10">Aún no hay un cliente seleccionado.</p>
+
+        <div class="flex justify-between mt-8 text-xs text-[#A3A3A3]">
+          <button id="s-admin" class="underline">Admin</button>
+          <button id="s-close" class="underline">Cerrar caja</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN / DASHBOARD -->
+    <section id="view-admin" class="view">
+
+      <!-- Bloqueo: contraseña del dueño -->
+      <div id="a-lock">
+        <h1 class="font-title text-3xl">ADMIN</h1>
+
+        <div id="a-login">
+          <p class="text-[#A3A3A3] text-sm mt-5 mb-4">Ingresa la contraseña del dueño para ver el panel.</p>
+          <div class="flex gap-2">
+            <input id="a-pin" type="password" class="field !py-3" placeholder="Contraseña del dueño" autocomplete="current-password">
+            <button id="a-unlock" class="btn btn-red !w-auto px-5 !py-3">ENTRAR</button>
+          </div>
+          <label class="flex items-center gap-2 mt-3 text-xs text-[#A3A3A3] cursor-pointer"><input id="a-ver" type="checkbox"> Mostrar contraseña</label>
+          <button id="a-olvide" type="button" class="block mx-auto mt-6 text-sm text-ember underline">¿Olvidaste tu contraseña?</button>
+        </div>
+
+        <form id="a-recup" class="hidden mt-5" novalidate>
+          <p class="text-[#A3A3A3] text-sm">Escribe tu <b class="text-white">código de recuperación</b> y elige una contraseña nueva. Al terminar recibirás un código nuevo (el anterior deja de servir).</p>
+          <input id="r-codigo" class="field mt-4 font-mono tracking-widest uppercase" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="30">
+          <input id="r-nueva" type="password" class="field mt-3" placeholder="Contraseña nueva" autocomplete="new-password">
+          <input id="r-nueva2" type="password" class="field mt-3" placeholder="Repite la contraseña nueva" autocomplete="new-password">
+          <p class="text-xs text-[#6b6b6b] mt-2">Mínimo 10 caracteres, con mayúscula, minúscula, número y un símbolo (* _ - ! #).</p>
+          <p id="r-error" class="text-fire text-sm min-h-[1.25rem] mt-2" role="alert"></p>
+          <button id="r-enviar" class="btn btn-red mt-2" type="submit">RESTABLECER CONTRASEÑA</button>
+          <button id="r-cancelar" type="button" class="block mx-auto mt-4 text-sm text-[#A3A3A3] underline">Cancelar</button>
+          <p class="text-xs text-[#6b6b6b] text-center mt-4">¿Perdiste también el código? Pídele a quien administra el sistema que ejecute <span class="font-mono">npm run reset-admin</span>.</p>
+        </form>
+
+        <button type="button" data-go="caja" class="block mx-auto mt-6 text-sm text-[#A3A3A3] underline">Volver a caja</button>
+      </div>
+
+      <div id="a-main" class="hidden">
+        <!-- Encabezado con la lupa -->
+        <div class="flex items-center gap-2">
+          <h1 class="font-title text-3xl mr-auto">ADMIN</h1>
+          <div id="a-searchbox" class="asearch">
+            <input id="a-q" type="search" class="field !py-2.5" placeholder="Buscar cliente…" autocomplete="off" aria-label="Buscar cliente" tabindex="-1">
+          </div>
+          <button id="a-lupa" type="button" class="icon-btn" aria-label="Buscar cliente" aria-expanded="false" aria-controls="a-searchbox">
+            <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          </button>
+        </div>
+        <div id="a-sug" class="hidden mt-3 clist" aria-label="Resultados de la búsqueda" aria-live="polite"></div>
+
+        <!-- Aviso: aún no hay código de recuperación -->
+        <div id="a-aviso" class="hidden mt-4 rounded-xl border border-ember/60 bg-[#2a1d08] p-3 text-sm">
+          <b class="text-ember">Aún no tienes código de recuperación.</b> Genéralo ahora: es lo que te permite volver a entrar si olvidas tu contraseña.
+          <button id="a-aviso-ir" type="button" class="underline ml-1">Ir a Seguridad</button>
+        </div>
+
+        <!-- Seguridad: contraseña, PIN de caja, código de recuperación y bitácora -->
+        <div id="a-seg" class="hidden mt-5">
+          <button id="as-back" type="button" class="text-sm text-[#A3A3A3] underline">← Volver al panel</button>
+          <h2 class="font-title text-3xl mt-3">SEGURIDAD</h2>
+          <p id="as-estado" class="text-[#A3A3A3] text-sm mt-1"></p>
+
+          <div class="grid md:grid-cols-2 gap-4 mt-4">
+            <form id="sc-form" class="bg-card border border-[#2a2a2a] rounded-2xl p-5" novalidate>
+              <h3 class="font-display text-xl tracking-wider">CONTRASEÑA DEL DUEÑO</h3>
+              <input id="sc-actual" type="password" class="field mt-3" placeholder="Contraseña actual" autocomplete="current-password">
+              <input id="sc-nueva" type="password" class="field mt-2" placeholder="Contraseña nueva" autocomplete="new-password">
+              <input id="sc-nueva2" type="password" class="field mt-2" placeholder="Repite la contraseña nueva" autocomplete="new-password">
+              <p class="text-xs text-[#6b6b6b] mt-2">Mínimo 10 caracteres, con mayúscula, minúscula, número y símbolo. Sin secuencias (1234) ni palabras comunes.</p>
+              <p id="sc-msg" class="text-sm min-h-[1.25rem] mt-2" role="alert"></p>
+              <button class="btn btn-red mt-1" type="submit">CAMBIAR CONTRASEÑA</button>
+            </form>
+
+            <form id="sp-form" class="bg-card border border-[#2a2a2a] rounded-2xl p-5" novalidate>
+              <h3 class="font-display text-xl tracking-wider">PIN DE CAJA (PERSONAL)</h3>
+              <p class="text-xs text-[#A3A3A3] mt-1">Solo tú puedes cambiarlo. El personal usa este PIN para sumar visitas y canjear.</p>
+              <input id="sp-actual" type="password" class="field mt-3" placeholder="Tu contraseña de dueño" autocomplete="current-password">
+              <input id="sp-nuevo" type="password" inputmode="numeric" class="field mt-2" placeholder="PIN de caja nuevo (mín. 6 dígitos)" autocomplete="off">
+              <input id="sp-nuevo2" type="password" inputmode="numeric" class="field mt-2" placeholder="Repite el PIN nuevo" autocomplete="off">
+              <p class="text-xs text-[#6b6b6b] mt-2">Solo números, mínimo 6. No se aceptan 123456, 111111, 121212 ni combinaciones parecidas.</p>
+              <p id="sp-msg" class="text-sm min-h-[1.25rem] mt-2" role="alert"></p>
+              <button class="btn btn-red mt-1" type="submit">CAMBIAR PIN DE CAJA</button>
+            </form>
+          </div>
+
+          <form id="sk-form" class="bg-card border border-[#2a2a2a] rounded-2xl p-5 mt-4" novalidate>
+            <h3 class="font-display text-xl tracking-wider">CÓDIGO DE RECUPERACIÓN</h3>
+            <p class="text-xs text-[#A3A3A3] mt-1">Si olvidas tu contraseña, este código te deja crear una nueva sin ayuda. Se muestra <b class="text-white">una sola vez</b> y sirve <b class="text-white">una sola vez</b>. Si generas uno nuevo, el anterior deja de servir.</p>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <input id="sk-actual" type="password" class="field !py-3 flex-1 min-w-[220px]" placeholder="Tu contraseña de dueño" autocomplete="current-password">
+              <button class="btn btn-red !w-auto px-5 !py-3" type="submit">GENERAR CÓDIGO NUEVO</button>
+            </div>
+            <p id="sk-msg" class="text-sm min-h-[1.25rem] mt-2" role="alert"></p>
+          </form>
+
+          <h3 class="font-display text-xl tracking-wider mt-6">BITÁCORA DE SEGURIDAD</h3>
+          <p class="text-xs text-[#A3A3A3]">Cada cambio y cada uso del código, con fecha e IP. Las últimas 30.</p>
+          <ul id="as-bit" class="mt-3 space-y-2 text-sm"></ul>
+        </div>
+
+        <!-- Panel general -->
+        <div id="a-home" class="mt-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div id="a-modos" class="seg" role="group" aria-label="Vista">
+              <button type="button" data-modo="resumen" aria-pressed="true">Resumen</button>
+              <button type="button" data-modo="comparar" aria-pressed="false">Comparar</button>
+            </div>
+            <div id="a-rangos" class="seg" role="group" aria-label="Periodo del resumen">
+              <button type="button" data-rango="7d" aria-pressed="true">7 días</button>
+              <button type="button" data-rango="30d" aria-pressed="false">30 días</button>
+              <button type="button" data-rango="12m" aria-pressed="false">12 meses</button>
+              <button type="button" data-rango="todo" aria-pressed="false">Todo</button>
+            </div>
+          </div>
+
+          <!-- RESUMEN -->
+          <div id="a-resumen" class="mt-5">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div class="kpi"><span>Clientes registrados</span><b id="k-total">–</b><small id="k-total-s"></small></div>
+              <div class="kpi"><span>Visitas hoy</span><b id="k-hoy">–</b><small id="k-hoy-s"></small></div>
+              <div class="kpi"><span>Visitas del periodo</span><b id="k-vis">–</b><small id="k-vis-s"></small></div>
+              <div class="kpi"><span>Premios canjeados</span><b id="k-canj">–</b><small>en el periodo</small></div>
+              <div class="kpi col-span-2 md:col-span-1"><span>Calificación general</span><b id="k-cal">–</b><small id="k-cal-s"></small></div>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
+              <!-- Clientes: nombre y calificación general -->
+              <div class="panel order-first lg:order-last">
+                <div class="flex items-baseline justify-between">
+                  <h3>Clientes</h3><span id="l-total" class="sub"></span>
+                </div>
+                <div id="l-lista" class="clist mt-3 max-h-72 lg:max-h-[620px]"></div>
+                <p id="l-nota" class="sub mt-2 hidden"></p>
+              </div>
+
+              <div class="lg:col-span-2 grid md:grid-cols-2 gap-4">
+                <div class="panel md:col-span-2">
+                  <h3>Registros y asistencia</h3><p class="sub">Clientes nuevos y clientes que vinieron, por día</p>
+                  <div class="chart-box mt-3"><canvas id="ch-serie" role="img" aria-label="Barras de clientes nuevos y clientes que vinieron por día"></canvas><p class="chart-empty">Sin datos en este periodo</p></div>
+                </div>
+                <div class="panel">
+                  <h3>Clientes activos</h3><p class="sub">Con al menos una visita en el periodo</p>
+                  <div class="chart-box mt-3"><canvas id="ch-activos" role="img" aria-label="Torta de clientes activos frente a inactivos"></canvas><p class="chart-empty">Aún no hay clientes</p></div>
+                </div>
+                <div class="panel">
+                  <h3>Horas más llenas</h3><p id="h-pico" class="sub">Visitas por hora del día</p>
+                  <div class="chart-box mt-3"><canvas id="ch-horas" role="img" aria-label="Barras de visitas por hora del día"></canvas><p class="chart-empty">Sin visitas en este periodo</p></div>
+                </div>
+                <div class="panel">
+                  <h3>Calificación general</h3><p id="c-resp" class="sub">De 1 a 5 estrellas</p>
+                  <div class="chart-box mt-3"><canvas id="ch-cal-pie" role="img" aria-label="Torta de calificaciones generales de 1 a 5"></canvas><p class="chart-empty">Nadie ha calificado en este periodo</p></div>
+                </div>
+                <div class="panel">
+                  <h3>Servicio, comida y lugar</h3>
+                  <div id="c-medias" class="grid grid-cols-3 gap-2 mt-2"></div>
+                  <div class="chart-box mt-3"><canvas id="ch-cal-bar" role="img" aria-label="Barras de calificaciones de 1 a 5 por servicio, comida y lugar"></canvas><p class="chart-empty">Nadie ha calificado en este periodo</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COMPARAR -->
+          <div id="a-comparar" class="hidden mt-5">
+            <p class="text-[#A3A3A3] text-sm">Elige qué comparar y una fecha para cada lado: se toma el día, la semana (lun–dom), el mes o el año que la contiene.</p>
+            <div id="a-gran" class="seg mt-3" role="group" aria-label="Comparar por">
+              <button type="button" data-gran="dia" aria-pressed="false">Días</button>
+              <button type="button" data-gran="semana" aria-pressed="true">Semanas</button>
+              <button type="button" data-gran="mes" aria-pressed="false">Meses</button>
+              <button type="button" data-gran="anio" aria-pressed="false">Años</button>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-3 mt-4">
+              <label class="pick pick-a"><span><i></i> Periodo A</span><input id="a-fa" type="date" class="field !py-2.5"><small id="a-ta"></small></label>
+              <label class="pick pick-b"><span><i></i> Periodo B</span><input id="a-fb" type="date" class="field !py-2.5"><small id="a-tb"></small></label>
+            </div>
+            <div class="panel mt-4 !p-0 overflow-x-auto">
+              <table class="cmp" aria-label="Comparativa entre periodos">
+                <thead><tr><th></th><th class="ca">A</th><th class="cb">B</th><th>Cambio</th></tr></thead>
+                <tbody id="a-tabla"></tbody>
+              </table>
+            </div>
+            <div class="grid lg:grid-cols-3 gap-4 mt-4">
+              <div class="panel"><h3>Actividad</h3><div class="chart-box mt-3"><canvas id="ch-cmp-act" role="img" aria-label="Barras de actividad de A frente a B"></canvas><p class="chart-empty">Sin datos</p></div></div>
+              <div class="panel"><h3>Calificaciones</h3><div class="chart-box mt-3"><canvas id="ch-cmp-cal" role="img" aria-label="Barras de calificaciones de A frente a B"></canvas><p class="chart-empty">Nadie calificó en estos periodos</p></div></div>
+              <div class="panel"><h3>Visitas por hora</h3><div class="chart-box mt-3"><canvas id="ch-cmp-hor" role="img" aria-label="Barras de visitas por hora de A frente a B"></canvas><p class="chart-empty">Sin visitas en estos periodos</p></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ficha de un cliente -->
+        <div id="a-cli" class="hidden mt-5">
+          <button id="ac-back" type="button" class="text-sm text-[#A3A3A3] underline">← Volver al panel</button>
+          <h2 id="ac-name" class="font-title text-3xl mt-3 break-words"></h2>
+          <p id="ac-meta" class="text-[#A3A3A3] text-sm mt-1"></p>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <div class="kpi"><span>Veces que ha venido</span><b id="ac-vis">–</b><small id="ac-vis-s"></small></div>
+            <div class="kpi"><span>Premios canjeados</span><b id="ac-can">–</b><small id="ac-can-s"></small></div>
+            <div class="kpi"><span>Tarjeta actual</span><b id="ac-tar">–</b><small>visitas acumuladas</small></div>
+            <div class="kpi"><span>Calificación general</span><b id="ac-cal">–</b><small id="ac-cal-s"></small></div>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
+            <div class="panel">
+              <h3>Premios canjeados</h3>
+              <ul id="ac-canjes" class="mt-3 space-y-2 text-sm max-h-64 overflow-y-auto"></ul>
+            </div>
+            <div class="panel">
+              <h3>Sus calificaciones</h3><p class="sub">De 1 a 5 estrellas</p>
+              <div class="chart-box mt-3"><canvas id="ac-pie" role="img" aria-label="Torta de las calificaciones generales del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div>
+            </div>
+            <div class="panel">
+              <h3>Promedio por aspecto</h3><p class="sub">Servicio, comida y lugar</p>
+              <div class="chart-box mt-3"><canvas id="ac-bar" role="img" aria-label="Barras del promedio de servicio, comida y lugar del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div>
+            </div>
+          </div>
+
+          <!-- Comentarios: cerrados por defecto para no ser intrusivos -->
+          <details id="ac-com" class="comentarios mt-4">
+            <summary><span id="ac-com-t">Comentarios</span></summary>
+            <ul id="ac-com-l" class="mt-3 space-y-3"></ul>
+          </details>
+        </div>
+
+        <div class="flex justify-between mt-10 text-xs text-[#A3A3A3]">
+          <span class="flex gap-4">
+            <button id="a-excel" class="underline" title="Datos de contacto ocultos (3*****67, a***@correo.com)">Descargar Excel</button>
+            <button id="a-excel-full" class="underline" title="Incluye WhatsApp, correo y fecha de nacimiento completos">Excel completo</button>
+            <button id="a-seg-btn" class="underline" title="Contraseña, PIN de caja y código de recuperación">Seguridad</button>
+          </span>
+          <button id="a-salir" class="underline">Salir del panel</button>
+        </div>
+      </div>
+    </section>
+
+  <!-- TÉRMINOS Y CONDICIONES -->
+  <section id="view-terminos" class="view">
+    <h1 class="font-title text-2xl text-center mt-2">TÉRMINOS Y CONDICIONES</h1>
+    <p class="text-[#A3A3A3] text-sm mt-1 mb-5">Proximamente.</p>
+    <button type="button" data-go="registro" class="btn btn-red mt-6">VOLVER AL REGISTRO</button>
+  </section>
+
+  </main>
+</div>
+
+<!-- ============ CALIFICACIÓN (aparece al sumar una visita) ============ -->
+<div id="rate" class="fixed inset-0 z-[55] hidden items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="rate-title">
+  <form id="rate-form" class="relative w-full max-w-[450px] max-h-[94vh] overflow-y-auto bg-card border border-fire rounded-t-3xl sm:rounded-3xl p-6 shadow-[0_0_40px_rgba(230,46,45,.35)]" novalidate>
+    <p class="text-ember text-xs tracking-[.25em] text-center">¡VISITA SUMADA!</p>
+    <h2 id="rate-title" class="font-title text-2xl text-center mt-1">¿CÓMO TE FUE?</h2>
+    <p id="rate-name" class="text-[#A3A3A3] text-sm text-center mt-1">Tu opinión nos ayuda a mejorar</p>
+    <p id="rate-vence" class="text-[#6b6b6b] text-xs text-center mb-4"></p>
+
+    <div class="text-center">
+      <div id="rate-general" class="gstars" role="img" aria-label="Calificación general: sin calificar">
+        <div class="gstars-base"></div><div class="gstars-fill" id="rate-general-fill"></div>
+      </div>
+      <p class="mt-2 h-7"><span id="rate-general-num" class="font-display text-3xl text-ember"></span><span id="rate-general-label" class="text-sm font-semibold text-ember ml-2"></span></p>
+      <p class="text-[#6b6b6b] text-xs">Calificación general · se calcula con las 3 de abajo</p>
+    </div>
+
+    <div class="pt-4 space-y-3">
+      <div class="rate-row"><span>Servicio</span><div class="stars" data-key="servicio" role="radiogroup" aria-label="Servicio"></div></div>
+      <div class="rate-row"><span>Comida</span><div class="stars" data-key="comida" role="radiogroup" aria-label="Comida"></div></div>
+      <div class="rate-row"><span>Lugar <small>(ambientación)</small></span><div class="stars" data-key="lugar" role="radiogroup" aria-label="Lugar y ambientación"></div></div>
+      <div>
+        <textarea id="rate-comment" class="field resize-none" rows="3" maxlength="500" placeholder="Cuéntanos más (opcional)"></textarea>
+        <p class="text-right text-xs text-[#6b6b6b] mt-1"><span id="rate-count">0</span>/500</p>
+      </div>
+    </div>
+
+    <p id="rate-error" class="text-fire text-sm min-h-[1.25rem] text-center mt-2" role="alert"></p>
+    <button id="rate-send" class="btn btn-red" type="submit" disabled>ENVIAR CALIFICACIÓN</button>
+    <button id="rate-skip" type="button" class="block mx-auto mt-4 text-sm text-[#A3A3A3] underline">Ahora no</button>
+  </form>
+</div>
+
+<!-- ============ CÓDIGO DE RECUPERACIÓN (se muestra una sola vez) ============ -->
+<div id="cod-modal" class="fixed inset-0 z-[65] hidden items-center justify-center bg-black/90 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="cod-titulo">
+  <div class="w-full max-w-[450px] bg-card border border-fire rounded-3xl p-6 shadow-[0_0_40px_rgba(230,46,45,.35)]">
+    <p class="text-ember text-xs tracking-[.25em] text-center">SOLO SE MUESTRA UNA VEZ</p>
+    <h2 id="cod-titulo" class="font-title text-2xl text-center mt-1">TU CÓDIGO DE RECUPERACIÓN</h2>
+    <div id="cod-valor" class="mt-4 rounded-xl bg-black border border-[#333] py-4 px-2 text-center font-mono text-xl sm:text-2xl tracking-widest break-all select-all"></div>
+    <button id="cod-copiar" type="button" class="btn btn-white mt-3">COPIAR CÓDIGO</button>
+    <p class="text-xs text-[#A3A3A3] mt-3">Guárdalo en un lugar seguro (gestor de contraseñas o papel guardado fuera de la caja). Sirve <b class="text-white">una sola vez</b>: al usarlo te daremos otro nuevo. Si lo pierdes, genera uno nuevo desde Seguridad.</p>
+    <label class="flex items-start gap-2 mt-4 text-sm cursor-pointer"><input id="cod-ok" type="checkbox" class="mt-1"> Ya lo guardé en un lugar seguro</label>
+    <button id="cod-listo" type="button" class="btn btn-red mt-4" disabled>LISTO</button>
+  </div>
+</div>
+
+<!-- ============ ESCÁNER DE QR (cámara) ============ -->
+<div id="scan" class="fixed inset-0 z-[58] hidden flex-col bg-black" role="dialog" aria-modal="true" aria-label="Escanear código QR">
+  <video id="scan-video" class="absolute inset-0 w-full h-full object-cover" playsinline muted></video>
+  <div class="relative flex-1 flex flex-col items-center justify-center px-6">
+    <div class="scan-frame"><i></i><i></i><i></i><i></i><span class="scan-line"></span></div>
+    <p class="mt-6 font-display text-2xl tracking-wider text-center drop-shadow">APUNTA AL QR DE LA TARJETA</p>
+    <p id="scan-msg" class="text-sm text-[#d4d4d4] text-center mt-1 h-5 drop-shadow"></p>
+  </div>
+  <div class="relative p-6 pb-8"><button id="scan-close" type="button" class="btn btn-white max-w-[360px] mx-auto">CANCELAR</button></div>
+</div>
+
+<div id="toast" class="fixed left-1/2 bottom-6 -translate-x-1/2 translate-y-24 bg-white text-black font-semibold text-sm px-5 py-3 rounded-xl shadow-xl transition-transform duration-300 z-[60]"></div>
+    <button id="toro-secreto" type="button" aria-label="Puta Delicia BBQ" class="mt-5 mb-4 p-3 text-[#2b2b2b] transition-colors">
+    <svg viewBox="0 0 200 64.7" class="w-14" aria-hidden="true"><use href="#toro"/></svg>
+  </button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
