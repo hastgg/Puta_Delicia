@@ -182,3 +182,19 @@ input[type=date]{color-scheme:dark}
 .a-error{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px;padding:10px 14px;border:1px solid #7f1d1d;background:#1a0f0f;border-radius:12px;color:#fca5a5;font-size:.85rem}
 .a-error button{color:#fff;text-decoration:underline;font-weight:600}
 .a-error.hidden{display:none}
+
+/* Comparar: atajos que se acomodan en varias líneas, casilla «igualar», fechas personalizadas y conclusión */
+.seg-w{flex-wrap:wrap}
+.chk{display:flex;gap:10px;align-items:flex-start;cursor:pointer;max-width:42rem}
+.chk input{width:18px;height:18px;margin-top:2px;accent-color:#E62E2D;flex:none}
+.chk b{display:block;font-size:.88rem;font-weight:700;color:#fff}
+.chk small{display:block;color:#A3A3A3;font-size:.78rem;line-height:1.35}
+.pick-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.pick-dates.hidden{display:none}
+.pick-dates label{display:flex;flex-direction:column;gap:4px;font-size:.75rem;color:#A3A3A3;font-weight:600}
+.concl{margin-top:12px;padding:12px 14px;background:#121212;border:1px solid #262626;border-left:4px solid #F59E0B;border-radius:12px}
+.concl.hidden{display:none}
+.concl p{font-weight:700;font-size:1.02rem;line-height:1.35}
+.concl small{display:block;margin-top:4px;color:#A3A3A3;font-size:.78rem}
+.concl small.hidden{display:none}
+.concl .up{color:#4ADE80}.concl .down{color:#F87171}

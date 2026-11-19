@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Base de datos simulada en memoria (solo para las pruebas): imita lo mínimo del driver de MongoDB que usa el proyecto.
- * Soporta filtros por igualdad, rutas con punto ('recuperacion.rid'), $in, $exists, $type, $or; $set; upsert; sort/skip/limit.
+ * Soporta filtros por igualdad, rutas con punto ('recuperacion.rid'), $in, $exists, $type, $or, $gt/$gte/$lt/$lte/$ne; $set; upsert; sort/skip/limit.
  */
 const get = (o, ruta) => ruta.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
 function set(o, ruta, v) { const p = ruta.split('.'); let a = o; for (const k of p.slice(0, -1)) a = a[k] ??= {}; a[p.at(-1)] = v; }
@@ -16,6 +16,10 @@ function coincide(doc, filtro = {}) {
       if ('$exists' in cond) return (v !== undefined) === cond.$exists;
       if ('$type' in cond) return typeof v === cond.$type;
       if ('$regex' in cond) return typeof v === 'string' && new RegExp(cond.$regex).test(v);
+      // Comparaciones (fechas o números). Como en Mongo, un campo vacío (null / sin definir) NO cumple $gt/$gte/$lt/$lte.
+      const comp = { $gt: (a, b) => a > b, $gte: (a, b) => a >= b, $lt: (a, b) => a < b, $lte: (a, b) => a <= b };
+      if (Object.keys(cond).some(o => o in comp || o === '$ne'))
+        return Object.entries(cond).every(([o, c]) => (o === '$ne' ? (v instanceof Date && c instanceof Date ? +v !== +c : v !== c) : v != null && comp[o](v, c)));
     }
     return v instanceof Date && cond instanceof Date ? +v === +cond : v === cond;
   });

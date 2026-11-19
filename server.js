@@ -693,20 +693,43 @@ app.get('/api/admin/cliente/:id', soloAdmin, ah(async (req, res) => {
   });
 }));
 
-// 7d) Comparativa entre dos periodos: ?g=dia|semana|mes|anio&a=AAAA-MM-DD&b=AAAA-MM-DD
-//     Cada fecha se convierte en el día / semana (lun-dom) / mes / año que la contiene.
+// 7d) Comparativa entre dos periodos.
+//     Atajo:         ?atajo=semana | mes | mes-anio   (esta semana vs la pasada, este mes vs el pasado, este mes vs el mismo mes del año pasado)
+//     Personalizado: ?a_ini=&a_fin=&b_ini=&b_fin=     (AAAA-MM-DD, extremos incluidos)
+//     ?igualar=0 apaga «Igualar días transcurridos» (por defecto encendido): si un periodo está en curso, el otro se corta
+//     a los mismos días, para no comparar «2 días de esta semana» contra «7 de la pasada».
+const MAX_DIAS_COMPARAR = 800;
 app.get('/api/admin/comparar', soloAdmin, ah(async (req, res) => {
-  const g = String(req.query.g || '');
-  if (!['dia', 'semana', 'mes', 'anio'].includes(g)) return fallo(res, 400, 'Elige día, semana, mes o año.');
-  const { a, b } = req.query;
-  if (!E.ymdValido(a) || !E.ymdValido(b)) return fallo(res, 400, 'Elige las dos fechas a comparar.');
   const hoy = E.ymdDe(new Date());
-  const armar = async ymd => {
-    const p = E.periodo(g, ymd), r = await cargarPeriodo(p.ini, p.fin);
-    return { ...p, en_curso: p.fin >= hoy, registros: r.registros, visitas: r.visitas, unicos: r.unicos, canjes: r.canjes, horas: r.horas, calif: r.calif };
+  const igualar = req.query.igualar !== '0';
+  const atajo = String(req.query.atajo || '');
+  let pedidoA, pedidoB;
+  if (atajo) {
+    const r = E.rangosAtajo(atajo, hoy);
+    if (!r) return fallo(res, 400, 'Elige una de las comparaciones disponibles.');
+    pedidoA = r.a; pedidoB = r.b;
+  } else {
+    const { a_ini, a_fin, b_ini, b_fin } = req.query;
+    if (![a_ini, a_fin, b_ini, b_fin].every(E.ymdValido)) return fallo(res, 400, 'Elige las fechas «desde» y «hasta» de los dos periodos.');
+    pedidoA = { ini: a_ini, fin: a_fin }; pedidoB = { ini: b_ini, fin: b_fin };
+    for (const p of [pedidoA, pedidoB]) {
+      if (p.ini > p.fin) return fallo(res, 400, 'En cada periodo, «desde» no puede ser posterior a «hasta».');
+      if (p.ini > hoy) return fallo(res, 400, 'Un periodo no puede empezar en el futuro.');
+      if (E.diasEntre(p.ini, p.fin) > MAX_DIAS_COMPARAR) return fallo(res, 400, 'Cada periodo puede abarcar como máximo unos dos años.');
+    }
+  }
+  const c = E.prepararComparacion(pedidoA, pedidoB, hoy, igualar);
+  const bucket = c.dias > 62 ? 'mes' : 'dia';                        // periodos largos → un punto por mes en la gráfica
+  const armar = async p => {
+    const r = await cargarPeriodo(p.ini, p.fin, bucket);
+    return {
+      ini: p.ini, fin: p.fin, fin_pedido: p.fin_pedido, en_curso: p.en_curso, dias: p.dias,
+      registros: r.registros, visitas: r.visitas, unicos: r.unicos, canjes: r.canjes, horas: r.horas, calif: r.calif,
+      dia_fuerte: E.diaFuerte(r.mapa), serie: r.serie,                // la serie día a día (o mes a mes) alimenta la gráfica de líneas
+    };
   };
-  const [A, B] = await Promise.all([armar(a), armar(b)]);
-  res.json({ ok: true, g, a: A, b: B });
+  const [A, B] = await Promise.all([armar(c.a), armar(c.b)]);
+  res.json({ ok: true, atajo: atajo || null, igualar, recortado: c.recortado, dias: c.dias, bucket, a: A, b: B });
 }));
 
 /* Frontend: se sirve la carpeta ./public */

@@ -367,7 +367,7 @@ const Admin = (() => {
   const FIRE = '#E62E2D', EMBER = '#F59E0B', GRIS = '#A3A3A3';
   const ESTRELLAS = ['#7F1D1D', '#E62E2D', '#F59E0B', '#FCD34D', '#FFFFFF'];     // 1★ oscuro → 5★ brillante
   const CAMPOS = [['servicio', 'Servicio', FIRE], ['comida', 'Comida', EMBER], ['lugar', 'Lugar', GRIS]];
-  let pinA = sessionStorage.getItem('pd_admin') || '', modo = 'resumen', rango = '7d', gran = 'semana';
+  let pinA = sessionStorage.getItem('pd_admin') || '', modo = 'resumen', rango = '7d', atajo = 'semana';
   let tokR = 0, tokC = 0, tokB = 0, tokL = 0, comparado = false;
   let ordenL = 'nombre';                                            // orden de la lista de clientes: nombre | calif | visita
   let pagL = 1, pagB = 1, pagS = 1;                                 // página actual: clientes, búsqueda y bitácora
@@ -383,13 +383,20 @@ const Admin = (() => {
   const ymd = (s, o) => new Date(s + 'T00:00:00Z').toLocaleDateString('es-CO', { timeZone: 'UTC', ...o });
   const corto = t => t.replace(/ de /g, ' ').replace('.', '');                      // "16 de nov" → "16 nov"
   const etqBarra = (k, bucket) => corto(bucket === 'mes' ? ymd(k + '-01', { month: 'short', year: '2-digit' }) : ymd(k, { day: 'numeric', month: 'short' }));
-  const etqPeriodo = (g, ini, fin) =>
-    g === 'dia' ? ymd(ini, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    : g === 'semana' ? corto(`${ymd(ini, { day: 'numeric', month: 'short' })} – ${ymd(fin, { day: 'numeric', month: 'short', year: 'numeric' })}`)
-    : g === 'mes' ? ymd(ini, { month: 'long', year: 'numeric' }) : ini.slice(0, 4);
-  const etqCorta = (g, ini, fin) =>
-    g === 'dia' ? corto(ymd(ini, { day: 'numeric', month: 'short' })) : g === 'semana' ? corto(`${ymd(ini, { day: 'numeric', month: 'short' })}–${ymd(fin, { day: 'numeric', month: 'short' })}`)
-    : g === 'mes' ? corto(ymd(ini, { month: 'short', year: '2-digit' })) : ini.slice(0, 4);
+  const diasEnt = (ini, fin) => Math.round((new Date(fin + 'T00:00:00Z') - new Date(ini + 'T00:00:00Z')) / 86400000) + 1;
+  const esFinDeMes = f => { const d = new Date(f + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.getUTCDate() === 1; };
+  // Un rango de fechas en palabras: un día suelto, un mes completo («noviembre de 2026») o «16 nov – 22 nov 2026»
+  const etqRango = (ini, fin) =>
+    ini === fin ? ymd(ini, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : ini.endsWith('-01') && ini.slice(0, 7) === fin.slice(0, 7) && esFinDeMes(fin) ? ymd(ini, { month: 'long', year: 'numeric' })
+    : corto(`${ymd(ini, { day: 'numeric', month: 'short' })} – ${ymd(fin, { day: 'numeric', month: 'short', year: 'numeric' })}`);
+  // Versión corta para leyendas; lleva el año para que «1–19 nov» de dos años distintos no se confundan
+  function etqCorto(ini, fin) {
+    const f = (s, o) => corto(ymd(s, o)), conAnio = { day: 'numeric', month: 'short', year: '2-digit' };
+    if (ini === fin) return f(ini, conAnio);
+    if (ini.slice(0, 4) !== fin.slice(0, 4)) return `${f(ini, conAnio)}–${f(fin, conAnio)}`;
+    return `${f(ini, ini.slice(0, 7) === fin.slice(0, 7) ? { day: 'numeric' } : { day: 'numeric', month: 'short' })}–${f(fin, conAnio)}`;
+  }
   const pico = horas => { const m = Math.max(...horas); return m ? { h: horas.indexOf(m), n: m } : null; };
   // Rango de horas que vale la pena dibujar (se recortan las horas sin visitas en los extremos)
   function rangoHoras(...arrs) {
@@ -784,49 +791,134 @@ const Admin = (() => {
   };
 
   /* ---------- Comparar ---------- */
-  function porDefecto(g) {                                         // A = periodo actual, B = el inmediatamente anterior
-    const hoy = hoyBogota(), d = new Date(hoy + 'T00:00:00Z');
-    if (g === 'dia') d.setUTCDate(d.getUTCDate() - 1);
-    else if (g === 'semana') d.setUTCDate(d.getUTCDate() - 7);
-    else if (g === 'mes') { d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); }
-    else d.setUTCFullYear(d.getUTCFullYear() - 1);
-    return { a: hoy, b: d.toISOString().slice(0, 10) };
-  }
-  function cambio(a, b, tipo) {                                    // → [texto, clase]
+  const DIAS_LARGO = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  const DIAS_CORTO = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const dec = (n, d = 1) => (n == null ? '–' : Number(n).toFixed(d).replace('.', ','));      // 0,3 (coma decimal, como se escribe en Colombia)
+  const flecha = d => (d > 0 ? '▲' : '▼');
+  const mas = d => (d > 0 ? '+' : '−');
+  let ultimo = null;                                               // última respuesta: sirve para precargar las fechas del modo «Personalizado»
+
+  /* Cambio de A frente a B → [texto, clase].
+     'n' conteos: porcentaje y cantidad a la vez («▲ +100 % (+2)»); si B era 0 no hay porcentaje: «▲ +4 (antes 0)».
+     'r' estrellas: diferencia en ★. 'p' proporción (tasa de respuesta): diferencia en puntos porcentuales. 'h': sin cambio que mostrar. */
+  function cambio(a, b, tipo) {
     if (tipo === 'h' || a == null || b == null) return ['', 'eq'];
-    if (tipo === 'r') { const d = Math.round((a - b) * 10) / 10; return d === 0 ? ['=', 'eq'] : d > 0 ? ['▲ +' + num(d), 'up'] : ['▼ ' + num(d), 'down']; }
-    if (b === 0) return a === 0 ? ['=', 'eq'] : ['nuevo', 'up'];
-    const p = Math.round((a - b) / b * 100);
-    return p === 0 ? ['=', 'eq'] : p > 0 ? [`▲ +${p}%`, 'up'] : [`▼ ${p}%`, 'down'];
+    const cls = d => (d > 0 ? 'up' : 'down');
+    if (tipo === 'r') { const d = Math.round((a - b) * 10) / 10; return d === 0 ? ['=', 'eq'] : [`${flecha(d)} ${mas(d)}${dec(Math.abs(d))} ★`, cls(d)]; }
+    if (tipo === 'p') { const d = Math.round((a - b) * 100); return d === 0 ? ['=', 'eq'] : [`${flecha(d)} ${mas(d)}${Math.abs(d)} pts`, cls(d)]; }
+    const d = a - b;
+    if (d === 0) return ['=', 'eq'];
+    if (b === 0) return [`${flecha(d)} ${mas(d)}${Math.abs(d)} (antes 0)`, cls(d)];
+    return [`${flecha(d)} ${mas(d)}${Math.abs(Math.round(d / b * 100))} % (${mas(d)}${Math.abs(d)})`, cls(d)];
   }
+
+  /* La conclusión en una línea, visible sin abrir nada: «Visitas ▲ 18 % (+12), pero calificación ▼ 0,3 ★». */
+  function conclusion(r) {
+    const A = r.a, B = r.b, cl = d => (d > 0 ? 'up' : d < 0 ? 'down' : '');
+    const span = (txt, d) => `<span class="${cl(d)}">${txt}</span>`;
+    const dv = A.visitas - B.visitas;
+    let vis;
+    if (!A.visitas && !B.visitas) vis = 'Sin visitas en estos periodos';
+    else if (dv === 0) vis = 'Visitas iguales';
+    else if (B.visitas === 0) vis = `Visitas ${span(`${flecha(dv)} ${mas(dv)}${dv > 0 ? dv : -dv} (antes 0)`, dv)}`;
+    else vis = `Visitas ${span(`${flecha(dv)} ${Math.abs(Math.round(dv / B.visitas * 100))} % (${mas(dv)}${Math.abs(dv)})`, dv)}`;
+    let txt = vis;
+    const ga = A.calif.general, gb = B.calif.general;
+    if (ga != null && gb != null) {
+      const dc = Math.round((ga - gb) * 10) / 10;
+      const union = (dv !== 0 && dc !== 0 && Math.sign(dv) !== Math.sign(dc)) ? ', pero ' : ' y ';
+      txt += union + (dc === 0 ? 'calificación igual' : `calificación ${span(`${flecha(dc)} ${dec(Math.abs(dc))} ★`, dc)}`);
+    }
+    $('#a-concl-t').innerHTML = txt;
+    // Segunda línea: qué se está comparando exactamente, o el aviso si la comparación no es pareja
+    let nota = '';
+    if (r.recortado) nota = `Comparación pareja: los primeros ${plural(r.dias, 'día', 'días')} de cada periodo.`;
+    else if (!r.igualar && (A.en_curso || B.en_curso) && A.dias !== B.dias)
+      nota = `Ojo: A tiene ${plural(A.dias, 'día', 'días')} y B ${plural(B.dias, 'día', 'días')}, así que las diferencias pueden engañar. Enciende «Igualar días transcurridos».`;
+    $('#a-concl-s').textContent = nota; $('#a-concl-s').classList.toggle('hidden', !nota);
+    $('#a-concl').classList.remove('hidden');
+  }
+
+  // «16 nov – 22 nov 2026 · 2 de 7 días (en curso)»: el rango pedido y cuánto de él se está comparando
+  function rotulo(P) {
+    const total = diasEnt(P.ini, P.fin_pedido);
+    return etqRango(P.ini, P.fin_pedido) + (P.dias < total ? ` · ${P.dias} de ${total} días${P.en_curso ? ' (en curso)' : ' (recortado)'}` : P.en_curso ? ' (en curso)' : '');
+  }
+
+  // Línea por día con A y B superpuestos: lunes contra lunes, martes contra martes
+  function lineaDias(r) {
+    const A = r.a, B = r.b, n = Math.max(A.serie.length, B.serie.length);
+    const labels = Array.from({ length: n }, (_, i) =>
+      r.bucket === 'mes' ? `Mes ${i + 1}` : atajo === 'semana' ? DIAS_CORTO[i] ?? `Día ${i + 1}` : atajo === 'custom' ? `Día ${i + 1}` : String(i + 1));
+    const nA = 'A · ' + etqCorto(A.ini, A.fin), nB = 'B · ' + etqCorto(B.ini, B.fin);
+    const fecha = s => (s ? (r.bucket === 'mes' ? etqBarra(s.k, 'mes') : corto(ymd(s.k, { weekday: 'short', day: 'numeric', month: 'short' }))) : null);
+    const serie = (P, col, nombre) => ({
+      label: nombre, data: P.serie.map(x => x.visitas), borderColor: col, backgroundColor: col,
+      borderWidth: 2.5, tension: .25, pointRadius: n > 31 ? 0 : 3, pointHoverRadius: 5, fill: false,
+    });
+    $('#a-dia-sub').textContent = r.bucket === 'mes' ? 'Visitas de A y B, mes contra mes'
+      : atajo === 'semana' ? 'Visitas de A y B: lunes contra lunes, martes contra martes' : 'Visitas de A y B, día contra día';
+    const cfg = {
+      type: 'line',
+      data: { labels, datasets: [serie(A, FIRE, nA), serie(B, EMBER, nB)] },
+      options: {
+        interaction: { mode: 'index', intersect: false }, scales: ejes(),
+        plugins: {
+          legend: { display: true, position: 'bottom' },
+          tooltip: { callbacks: {
+            title: items => { const i = items[0].dataIndex; return [fecha(A.serie[i]) && 'A: ' + fecha(A.serie[i]), fecha(B.serie[i]) && 'B: ' + fecha(B.serie[i])].filter(Boolean); },
+            label: c => ` ${c.dataset.label.split(' · ')[0]}: ${plural(c.parsed.y, 'visita', 'visitas')}`,
+          } },
+        },
+      },
+    };
+    dibujar('ch-cmp-dia', cfg, !sumaDe(A.serie.map(x => x.visitas)) && !sumaDe(B.serie.map(x => x.visitas)));
+  }
+
+  // Lee la selección y arma la consulta; null si faltan fechas o están al revés (el motivo se muestra bajo las fechas)
+  function consulta() {
+    const ig = `&igualar=${$('#a-igualar').checked ? 1 : 0}`;
+    $('#a-cerr').textContent = '';
+    if (atajo !== 'custom') return `atajo=${atajo}${ig}`;
+    const v = ['#a-ai', '#a-af', '#a-bi', '#a-bf'].map(x => $(x).value);
+    if (v.some(x => !x)) return null;
+    if (v[0] > v[1] || v[2] > v[3]) { $('#a-cerr').textContent = 'En cada periodo, «Desde» no puede ser posterior a «Hasta».'; return null; }
+    return `a_ini=${v[0]}&a_fin=${v[1]}&b_ini=${v[2]}&b_fin=${v[3]}${ig}`;
+  }
+
   async function cargarComparar() {
-    const a = $('#a-fa').value, b = $('#a-fb').value;
-    if (!a || !b) return;
+    const q = consulta();
+    if (!q) return;
     const t = ++tokC;
     $('#a-error').classList.add('hidden'); marcarCarga('#a-comparar', true);
-    const r = await pedir(`/api/admin/comparar?g=${gran}&a=${a}&b=${b}`);
+    const r = await pedir('/api/admin/comparar?' + q);
     if (t !== tokC) return;
     marcarCarga('#a-comparar', false);
     if (!r) return falloCarga();
+    ultimo = r;
     const A = r.a, B = r.b;
-    $('#a-ta').textContent = etqPeriodo(gran, A.ini, A.fin) + (A.en_curso ? ' (en curso)' : '');
-    $('#a-tb').textContent = etqPeriodo(gran, B.ini, B.fin) + (B.en_curso ? ' (en curso)' : '');
+    $('#a-ta').textContent = rotulo(A);
+    $('#a-tb').textContent = rotulo(B);
+    conclusion(r);
 
     const horaTxt = e => { const p = pico(e.horas); return p ? `${hora12(p.h)} (${p.n})` : '–'; };
+    const diaTxt = e => (e.dia_fuerte ? `${DIAS_LARGO[e.dia_fuerte.d][0].toUpperCase() + DIAS_LARGO[e.dia_fuerte.d].slice(1)} (${e.dia_fuerte.n})` : '–');
     const filas = [
       ['Clientes nuevos', e => e.registros, 'n'], ['Visitas', e => e.visitas, 'n'], ['Clientes distintos', e => e.unicos, 'n'],
       ['Premios canjeados', e => e.canjes, 'n'], ['Calificación general', e => e.calif.general, 'r'],
       ['Servicio', e => e.calif.servicio, 'r'], ['Comida', e => e.calif.comida, 'r'], ['Lugar', e => e.calif.lugar, 'r'],
-      ['Hora más llena', horaTxt, 'h'],
+      ['Tasa de respuesta', e => e.calif.tasa_respuesta, 'p'],
+      ['Hora más llena', horaTxt, 'h'], ['Día más fuerte', diaTxt, 'h'],
     ];
+    const ver = (v, tipo) => (tipo === 'r' ? (v == null ? '–' : dec(v) + ' ★') : tipo === 'p' ? (v == null ? '–' : Math.round(v * 100) + ' %') : v);
     $('#a-tabla').innerHTML = filas.map(([nombre, f, tipo]) => {
       const va = f(A), vb = f(B), [txt, cls] = cambio(va, vb, tipo);
-      const ver = v => (tipo === 'r' ? (v == null ? '–' : num(v) + ' ★') : v);
-      return `<tr><td>${nombre}</td><td>${ver(va)}</td><td>${ver(vb)}</td><td class="dl ${cls}">${txt}</td></tr>`;
+      return `<tr><td>${nombre}</td><td>${ver(va, tipo)}</td><td>${ver(vb, tipo)}</td><td class="dl ${cls}">${txt}</td></tr>`;
     }).join('');
 
-    const nA = 'A · ' + etqCorta(gran, A.ini, A.fin), nB = 'B · ' + etqCorta(gran, B.ini, B.fin);
+    const nA = 'A · ' + etqCorto(A.ini, A.fin), nB = 'B · ' + etqCorto(B.ini, B.fin);
     const dos = (fa, fb, col = [FIRE, EMBER]) => [{ label: nA, data: fa, backgroundColor: col[0] }, { label: nB, data: fb, backgroundColor: col[1] }];
+    lineaDias(r);
     const act = e => [e.registros, e.visitas, e.unicos, e.canjes];
     dibujar('ch-cmp-act', barras(['Nuevos', 'Visitas', 'Distintos', 'Canjes'], dos(act(A), act(B))), !sumaDe(act(A)) && !sumaDe(act(B)));
     const cal = e => ['general', 'servicio', 'comida', 'lugar'].map(k => e.calif[k] ?? 0);
@@ -838,14 +930,22 @@ const Admin = (() => {
     } else dibujar('ch-cmp-hor', {}, true);
     actualizado();
   }
-  function fijarGran(g) {
-    gran = g; comparado = true;
-    $('#a-gran').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.gran === g)));
-    const d = porDefecto(g); $('#a-fa').value = d.a; $('#a-fb').value = d.b;
-    cargarComparar();
+  function fijarAtajo(a) {
+    atajo = a; comparado = true;
+    $('#a-atajos').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.atajo === a)));
+    const custom = a === 'custom';
+    $('#a-ca').classList.toggle('hidden', !custom); $('#a-cb').classList.toggle('hidden', !custom);
+    if (!custom) return cargarComparar();
+    // Personalizado: arranca con los periodos que ya se estaban viendo (sin recargar) y el dueño ajusta las fechas
+    const hoy = hoyBogota(), mover = n => { const d = new Date(hoy + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const A = ultimo?.a, B = ultimo?.b;
+    $('#a-ai').value = A?.ini ?? mover(-6); $('#a-af').value = A?.fin_pedido ?? hoy;
+    $('#a-bi').value = B?.ini ?? mover(-13); $('#a-bf').value = B?.fin_pedido ?? mover(-7);
+    $('#a-cerr').textContent = '';
   }
-  seg('#a-gran', 'gran', fijarGran);
-  $('#a-fa').onchange = $('#a-fb').onchange = cargarComparar;
+  seg('#a-atajos', 'atajo', fijarAtajo);
+  ['#a-ai', '#a-af', '#a-bi', '#a-bf'].forEach(x => { $(x).onchange = cargarComparar; });
+  $('#a-igualar').onchange = cargarComparar;
 
   /* ---------- Paneles desplegables ---------- */
   // Las gráficas dentro de un panel cerrado miden 0: al abrirlo se vuelven a medir.
@@ -875,7 +975,7 @@ const Admin = (() => {
     $('#a-comparar').classList.toggle('hidden', m !== 'comparar');
     $('#a-rangos').classList.toggle('hidden', m !== 'resumen');
     if (m === 'resumen') { cargarResumen(); cargarLista(); }
-    else if (!comparado) fijarGran(gran); else cargarComparar();
+    else if (!comparado) fijarAtajo(atajo); else cargarComparar();
   }
   seg('#a-modos', 'modo', setModo);
   seg('#a-rangos', 'rango', r => { rango = r; cargarResumen(); });

@@ -337,17 +337,31 @@
 
           <!-- COMPARAR -->
           <div id="a-comparar" class="hidden mt-5">
-            <p class="text-[#A3A3A3] text-sm">Elige qué comparar y una fecha para cada lado: se toma el día, la semana (lun–dom), el mes o el año que la contiene.</p>
-            <div id="a-gran" class="seg mt-3" role="group" aria-label="Comparar por">
-              <button type="button" data-gran="dia" aria-pressed="false">Días</button>
-              <button type="button" data-gran="semana" aria-pressed="true">Semanas</button>
-              <button type="button" data-gran="mes" aria-pressed="false">Meses</button>
-              <button type="button" data-gran="anio" aria-pressed="false">Años</button>
+            <p class="text-[#A3A3A3] text-sm">Elige qué comparar. A es el periodo actual y B es contra el que se mide.</p>
+            <div id="a-atajos" class="seg seg-w mt-3" role="group" aria-label="Qué comparar">
+              <button type="button" data-atajo="semana" aria-pressed="true">Esta semana vs la pasada</button>
+              <button type="button" data-atajo="mes" aria-pressed="false">Este mes vs el pasado</button>
+              <button type="button" data-atajo="mes-anio" aria-pressed="false">Este mes vs el del año pasado</button>
+              <button type="button" data-atajo="custom" aria-pressed="false">Personalizado</button>
             </div>
+            <label class="chk mt-3">
+              <input id="a-igualar" type="checkbox" checked>
+              <span><b>Igualar días transcurridos</b><small>Si un periodo está en curso, el otro se corta a los mismos días: así «2 días de esta semana» no se mide contra «7 de la pasada».</small></span>
+            </label>
             <div class="grid sm:grid-cols-2 gap-3 mt-4">
-              <label class="pick pick-a"><span><i></i> Periodo A</span><input id="a-fa" type="date" class="field !py-2.5"><small id="a-ta"></small></label>
-              <label class="pick pick-b"><span><i></i> Periodo B</span><input id="a-fb" type="date" class="field !py-2.5"><small id="a-tb"></small></label>
+              <div class="pick pick-a"><span><i></i> Periodo A</span><small id="a-ta"></small>
+                <div id="a-ca" class="pick-dates hidden">
+                  <label>Desde<input id="a-ai" type="date" class="field !py-2.5"></label>
+                  <label>Hasta<input id="a-af" type="date" class="field !py-2.5"></label>
+                </div></div>
+              <div class="pick pick-b"><span><i></i> Periodo B</span><small id="a-tb"></small>
+                <div id="a-cb" class="pick-dates hidden">
+                  <label>Desde<input id="a-bi" type="date" class="field !py-2.5"></label>
+                  <label>Hasta<input id="a-bf" type="date" class="field !py-2.5"></label>
+                </div></div>
             </div>
+            <p id="a-cerr" class="text-fire text-sm min-h-[1.25rem] mt-2" role="alert"></p>
+            <div id="a-concl" class="concl hidden" role="status" aria-live="polite"><p id="a-concl-t"></p><small id="a-concl-s"></small></div>
             <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
               <details class="panel acc lg:col-span-3">
                 <summary><span class="acc-t"><h3>Tabla comparativa</h3><span class="sub">Todas las cifras de A frente a B</span></span></summary>
@@ -357,6 +371,10 @@
                     <tbody id="a-tabla"></tbody>
                   </table>
                 </div>
+              </details>
+              <details class="panel acc lg:col-span-3" open>
+                <summary><span class="acc-t"><h3>Día a día</h3><span class="sub" id="a-dia-sub">Visitas de A y B, una sobre otra</span></span></summary>
+                <div class="acc-body"><div class="chart-box"><canvas id="ch-cmp-dia" role="img" aria-label="Líneas de visitas por día de A frente a B"></canvas><p class="chart-empty">Sin visitas en estos periodos</p></div></div>
               </details>
               <details class="panel acc">
                 <summary><span class="acc-t"><h3>Actividad</h3><span class="sub">Nuevos, visitas, distintos y canjes</span></span></summary>
