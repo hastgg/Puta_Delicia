@@ -2,6 +2,17 @@
 /* Puta Delicia BBQ House — lógica del frontend (habla con la API del servidor) */
 const GOAL = 8, $ = s => document.querySelector(s);
 
+/* Librerías pesadas (jsQR, Chart.js): se descargan solo cuando se necesitan, desde este mismo servidor (public/vendor) */
+const libs = {};
+function cargarLib(src) {
+  if (!libs[src]) libs[src] = new Promise((ok, no) => {
+    const t = document.createElement('script');
+    t.src = src; t.onload = ok; t.onerror = () => { delete libs[src]; t.remove(); no(new Error('No cargó ' + src)); };
+    document.head.appendChild(t);
+  });
+  return libs[src];
+}
+
 /* ================= API ================= */
 // Mismo servidor por defecto. Si abres el archivo con doble clic (file://) apunta a localhost:3000.
 const API = window.API_URL || (location.protocol === 'file:' ? 'http://localhost:3000' : '');
@@ -256,7 +267,10 @@ const Scan = {
       return toast(e.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Actívalo en el navegador.' : 'No se pudo abrir la cámara.');
     }
     if ('BarcodeDetector' in window) { try { this.det = new BarcodeDetector({ formats: ['qr_code'] }); } catch { this.det = null; } }
-    if (!this.det && !window.jsQR) { this.close(); return toast('No se pudo cargar el lector de QR. Revisa la conexión.'); }
+    if (!this.det && !window.jsQR) {
+      try { await cargarLib('vendor/jsQR.js'); } catch { this.close(); return toast('No se pudo cargar el lector de QR. Revisa la conexión.'); }
+      if (!this.on) return;                                      // lo cerraron mientras cargaba el lector
+    }
     this.loop();
   },
   close() {
@@ -355,6 +369,7 @@ const Admin = (() => {
   const CAMPOS = [['servicio', 'Servicio', FIRE], ['comida', 'Comida', EMBER], ['lugar', 'Lugar', GRIS]];
   let pinA = sessionStorage.getItem('pd_admin') || '', modo = 'resumen', rango = '7d', gran = 'semana';
   let tokR = 0, tokC = 0, tokB = 0, tokL = 0, comparado = false;
+  let ordenL = 'nombre';                                            // orden de la lista de clientes: nombre | calif | visita
   let pagL = 1, pagB = 1, pagS = 1;                                 // página actual: clientes, búsqueda y bitácora
 
   /* ---------- utilidades ---------- */
@@ -513,6 +528,23 @@ const Admin = (() => {
     mostrarCodigo(r.codigo, () => { verRecuperar(false); entrar(); toast('Contraseña restablecida'); });   // el código nuevo se entrega aquí, una sola vez
   };
 
+  /* ---------- Estado de carga y botón «Actualizar» ---------- */
+  // Mientras llega la respuesta, las tarjetas se atenúan (con un pequeño retraso, para que no parpadee si responde rápido).
+  const marcarCarga = (sel, on) => { const e = $(sel); e.classList.toggle('cargando', on); e.setAttribute('aria-busy', String(on)); };
+  const horaAct = () => new Date().toLocaleTimeString('es-CO', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  function actualizado() { $('#a-act').textContent = 'Actualizado a las ' + horaAct(); $('#a-error').classList.add('hidden'); }
+  function falloCarga() { if (pinA) $('#a-error').classList.remove('hidden'); }          // si la sesión venció, salir() ya avisó
+  let refrescando = false;
+  async function refrescar() {
+    if (refrescando) return;
+    refrescando = true;
+    const b = $('#a-refrescar'); b.disabled = true; b.classList.add('girando');
+    try { await (modo === 'comparar' ? cargarComparar() : Promise.all([cargarResumen(), cargarLista()])); }
+    finally { refrescando = false; b.disabled = false; b.classList.remove('girando'); }
+  }
+  $('#a-refrescar').onclick = refrescar;
+  $('#a-reintentar').onclick = refrescar;
+
   /* ---------- gráficas (Chart.js) ---------- */
   const charts = {};
   let listo = false;
@@ -528,8 +560,13 @@ const Admin = (() => {
   function dibujar(id, cfg, vacio) {                               // vacio = true → muestra el aviso "sin datos"
     const cv = $('#' + id), caja = cv.parentElement, aviso = caja.querySelector('.chart-empty');
     charts[id]?.destroy(); delete charts[id];
+    if (!vacio && !window.Chart) {                                   // primera vez: se descarga Chart.js y luego se dibuja
+      cargarLib('vendor/chart.umd.min.js').then(() => dibujar(id, cfg, vacio)).catch(() => {
+        aviso.textContent = 'No se pudieron cargar las gráficas. Revisa tu conexión.'; caja.classList.add('is-empty');
+      });
+      return;
+    }
     preparar();
-    if (!vacio && !window.Chart) { vacio = true; aviso.textContent = 'No se pudieron cargar las gráficas. Revisa tu conexión.'; }
     caja.classList.toggle('is-empty', !!vacio);
     if (!vacio) charts[id] = new Chart(cv, cfg);
   }
@@ -549,14 +586,79 @@ const Admin = (() => {
   const sumaDe = a => a.reduce((x, y) => x + y, 0);
   const tortaEstrellas = id => (dist, n) => dibujar(id, torta(ETQ_ESTRELLAS, dist, ESTRELLAS), !n);
 
+  /* ---------- Cambio frente al periodo anterior y listas de acción ---------- */
+  // ▲ / ▼ junto a cada cifra. Con estrellas (promedio) se muestra la diferencia; con conteos, el porcentaje.
+  function pintarCambio(sel, c, ant, extra = '', estrellas = false) {
+    const e = $(sel);
+    e.className = 'dl'; e.removeAttribute('title');
+    if (!c) { e.textContent = ''; return; }                          // sin periodo anterior, o sin dato en alguno de los dos
+    const sube = c.dif > 0, baja = c.dif < 0;
+    const flecha = sube ? '▲' : baja ? '▼' : '=';
+    let t;
+    if (!sube && !baja) t = 'igual que el periodo anterior';
+    else if (estrellas) t = `${num(Math.abs(c.dif), 1)} ★ vs. periodo anterior`;
+    else if (c.pct == null) t = `${Math.abs(c.dif)} vs. periodo anterior (antes 0)`;
+    else t = `${Math.round(Math.abs(c.pct) * 100)}% vs. periodo anterior`;
+    e.textContent = `${flecha} ${t}${extra ? ' · ' + extra : ''}`;
+    e.classList.add(sube ? 'up' : baja ? 'down' : 'eq');
+    e.title = `Antes: ${estrellas ? num(c.previo, 2) : c.previo} (${fFecha(ant.ini + 'T12:00:00-05:00')} – ${fFecha(ant.fin + 'T12:00:00-05:00')})`;
+  }
+  const hace = d => (d == null ? 'sin visitas' : d === 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`);
+  const filaAccion = (c, detalle) => `<button type="button" class="crow" data-id="${esc(c.id)}">
+      <span class="nm">${esc(c.nombre)}<small>${esc(c.id)}</small></span><span class="rt">${esc(detalle)}</span></button>`;
+  function pintarAccion(a) {
+    const lista = (sel, g, detalle, vacio) => {
+      $(sel).innerHTML = g.lista.length ? g.lista.map(c => filaAccion(c, detalle(c))).join('') : `<p class="vacio">${vacio}</p>`;
+      $(sel + '-n').textContent = g.total;
+    };
+    $('#x-cerca-t').textContent = `A una visita de la cortesía (${a.meta - 1}/${a.meta})`;
+    $('#x-inact-t').textContent = `Sin venir hace ${a.dias_inactivo} días o más`;
+    lista('#x-cerca', a.cerca, c => 'última: ' + hace(c.dias), 'Nadie está a una visita del premio ahora mismo.');
+    lista('#x-inact', a.inactivos, c => hace(c.dias), 'Nadie lleva tanto tiempo sin venir. 🎉');
+    const recortado = a.cerca.total > a.cerca.lista.length || a.inactivos.total > a.inactivos.lista.length;
+    $('#x-sub').textContent = recortado ? 'Se ven los primeros de cada lista; el total va a la derecha' : 'Clientes a punto de ganar o que dejaron de venir';
+  }
+  $('#x-cerca').onclick = $('#x-inact').onclick = e => { const id = e.target.closest('.crow')?.dataset.id; if (id) abrirCliente(id); };
+
+  /* ---------- Mapa de calor día × hora ---------- */
+  const DIAS_C = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const DIAS_L = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  function pintarMapa(m, horas) {
+    const caja = $('#m-mapa'), vacio = $('#m-vacio'), sub = $('#m-sub'), pie = $('#m-pie');
+    const hr = m && rangoHoras(horas);                               // mismas horas recortadas que la gráfica de horas
+    caja.classList.toggle('hidden', !hr); vacio.classList.toggle('hidden', !!hr);
+    if (!hr) { caja.innerHTML = ''; sub.textContent = 'Cuándo se llena el local'; pie.textContent = ''; return; }
+    const hs = Array.from({ length: hr[1] - hr[0] + 1 }, (_, i) => hr[0] + i);
+    let max = 0, pd = 0, ph = 0;
+    m.forEach((fila, d) => fila.forEach((n, h) => { if (n > max) { max = n; pd = d; ph = h; } }));
+    const totD = m.map(f => f.reduce((a, b) => a + b, 0));
+    const fuerte = totD.indexOf(Math.max(...totD)), calmo = totD.indexOf(Math.min(...totD));
+    const celdas = m.map((fila, d) => `<span class="dn" title="${DIAS_L[d]}: ${plural(totD[d], 'visita', 'visitas')}">${DIAS_C[d]}</span>` + hs.map(h => {
+      const n = fila[h];
+      return `<span class="${n ? '' : 'c0'}${n === max && d === pd && h === ph ? ' pk' : ''}" style="${n ? `background:rgba(230,46,45,${(.15 + .85 * n / max).toFixed(2)})` : ''}" title="${DIAS_L[d]} ${hora12(h)}: ${plural(n, 'visita', 'visitas')}">${n || 0}</span>`;
+    }).join('')).join('');
+    caja.innerHTML = `<div class="hm" role="img" aria-label="Mapa de calor de visitas por día de la semana y hora. Más lleno: ${DIAS_L[pd]} ${hora12(ph)}, ${plural(max, 'visita', 'visitas')}."
+      style="grid-template-columns:38px repeat(${hs.length},minmax(30px,1fr))"><span class="hd"></span>${hs.map(h => `<span class="hd">${hora12(h)}</span>`).join('')}${celdas}</div>`;
+    sub.textContent = `Más lleno: ${DIAS_L[pd]} ${hora12(ph)} (${plural(max, 'visita', 'visitas')})`;
+    pie.innerHTML = `<span>Día más fuerte: ${DIAS_L[fuerte]} (${plural(totD[fuerte], 'visita', 'visitas')}) · Más tranquilo: ${DIAS_L[calmo]} (${totD[calmo]})</span>`;
+  }
+
   /* ---------- Resumen ---------- */
   async function cargarResumen() {
     const t = ++tokR;
+    $('#a-error').classList.add('hidden'); marcarCarga('#a-resumen', true);
     const r = await pedir('/api/admin/dashboard?rango=' + rango);
-    if (!r || t !== tokR) return;
+    if (t !== tokR) return;                                         // llegó una petición más nueva: ella se encarga
+    marcarCarga('#a-resumen', false);
+    if (!r) return falloCarga();
     const { periodo: p, hoy: h, calif: c } = r;
     $('#k-total').textContent = r.total_clientes;
     $('#k-total-s').textContent = p.registros ? `+${p.registros} en el periodo` : 'ninguno nuevo en el periodo';
+    const cb = r.cambio, ant = r.anterior;                         // cb es null en «Todo»: no hay un periodo anterior con el cual comparar
+    pintarCambio('#k-total-d', cb?.registros, ant, 'nuevos');
+    pintarCambio('#k-vis-d', cb?.visitas, ant);
+    pintarCambio('#k-canj-d', cb?.canjes, ant);
+    pintarCambio('#k-cal-d', cb?.general, ant, '', true);
     $('#k-hoy').textContent = h.visitas;
     $('#k-hoy-s').textContent = plural(h.unicos, 'cliente distinto', 'clientes distintos');
     $('#k-vis').textContent = p.visitas;
@@ -573,7 +675,7 @@ const Admin = (() => {
       { label: 'Clientes que vinieron', data: s.map(x => x.unicos), backgroundColor: FIRE },
     ]), !s.some(x => x.registros || x.unicos));
 
-    dibujar('ch-activos', torta(['Con visita', 'Sin visita'], [r.activos.con_visita, r.activos.sin_visita], [FIRE, '#3a3a3a']), !r.total_clientes);
+    pintarAccion(r.accion);
 
     // Horas pico
     const hr = rangoHoras(r.horas), pk = pico(r.horas);
@@ -582,30 +684,36 @@ const Admin = (() => {
       const hs = Array.from({ length: hr[1] - hr[0] + 1 }, (_, i) => hr[0] + i);
       dibujar('ch-horas', barras(hs.map(hora12), [{ label: 'Visitas', data: hs.map(x => r.horas[x]), backgroundColor: hs.map(x => (x === pk.h ? FIRE : 'rgba(230,46,45,.35)')) }], { legend: false }));
     } else dibujar('ch-horas', {}, true);
+    pintarMapa(r.mapa, r.horas);
 
     // Calificaciones: general (torta) y por aspecto (barras + promedios)
     tortaEstrellas('ch-cal-pie')(c.dist.general, c.n);
     $('#c-medias').innerHTML = CAMPOS.map(([k, nombre, col]) =>
       `<div class="avg" style="--w:${(c[k] || 0) / 5 * 100}%;--c:${col}"><span>${nombre}</span><b>${num(c[k])}</b><i></i></div>`).join('');
     dibujar('ch-cal-bar', barras(ETQ_ESTRELLAS, CAMPOS.map(([k, nombre, col]) => ({ label: nombre, data: c.dist[k], backgroundColor: col }))), !c.n);
+    actualizado();
   }
 
   /* ---------- Lista de clientes y lupa ---------- */
-  const filaCliente = c => `<button type="button" class="crow" data-id="${esc(c.id)}">
-      <span class="nm">${esc(c.nombre)}<small>${esc(c.id)}</small></span>
-      <span class="rt${c.general == null ? ' none' : ''}">${c.general == null ? 'Sin calificar' : num(c.general) + ' ★'}${c.n ? `<small>(${c.n})</small>` : ''}</span></button>`;
+  const filaHtml = (c, der) => `<button type="button" class="crow" data-id="${esc(c.id)}">
+      <span class="nm">${esc(c.nombre)}<small>${esc(c.id)}</small></span>${der}</button>`;
+  const derCalif = c => `<span class="rt${c.general == null ? ' none' : ''}">${c.general == null ? 'Sin calificar' : num(c.general) + ' ★'}${c.n ? `<small>(${c.n})</small>` : ''}</span>`;
+  // Ordenada por última visita: lo importante es cuánto lleva sin venir (la calificación queda como dato pequeño)
+  const derVisita = c => `<span class="rt${c.dias == null ? ' none' : ''}">${c.dias == null ? 'Nunca ha venido' : hace(c.dias)}${c.general == null ? '' : `<small>${num(c.general)} ★</small>`}</span>`;
+  const filaCliente = c => filaHtml(c, derCalif(c));                // lupa: siempre con calificación
   async function cargarLista(pag = pagL) {
     const t = ++tokL;
-    const r = await pedir('/api/admin/clientes?pag=' + pag);
+    const r = await pedir(`/api/admin/clientes?pag=${pag}&orden=${ordenL}`);
     if (!r || t !== tokL) return;
     pagL = r.pag;                                                   // el servidor ajusta la página si ya no existe
     $('#l-total').textContent = plural(r.total, 'cliente', 'clientes') + (r.paginas > 1 ? ` · página ${r.pag} de ${r.paginas}` : '');
-    $('#l-lista').innerHTML = r.clientes.length ? r.clientes.map(filaCliente).join('') : '<p class="vacio">Aún no hay clientes registrados.</p>';
+    $('#l-lista').innerHTML = r.clientes.length ? r.clientes.map(c => filaHtml(c, ordenL === 'visita' ? derVisita(c) : derCalif(c))).join('') : '<p class="vacio">Aún no hay clientes registrados.</p>';
     pintarPager($('#l-pag'), r, cargarLista);
     const nota = $('#l-nota');
     nota.classList.toggle('hidden', r.total <= r.clientes.length);
     nota.textContent = `Mostrando ${rangoPag(r)} de ${r.total}. Usa la lupa para buscar a alguien en particular.`;
   }
+  $('#l-orden').onchange = e => { ordenL = e.target.value; pagL = 1; cargarLista(1); };      // cambiar el orden vuelve a la página 1
   $('#l-lista').onclick = e => { const id = e.target.closest('.crow')?.dataset.id; if (id) abrirCliente(id); };
 
   const q = $('#a-q'), sug = $('#a-sug'), sugL = $('#a-sug-l'), sugP = $('#a-sug-p');
@@ -695,8 +803,11 @@ const Admin = (() => {
     const a = $('#a-fa').value, b = $('#a-fb').value;
     if (!a || !b) return;
     const t = ++tokC;
+    $('#a-error').classList.add('hidden'); marcarCarga('#a-comparar', true);
     const r = await pedir(`/api/admin/comparar?g=${gran}&a=${a}&b=${b}`);
-    if (!r || t !== tokC) return;
+    if (t !== tokC) return;
+    marcarCarga('#a-comparar', false);
+    if (!r) return falloCarga();
     const A = r.a, B = r.b;
     $('#a-ta').textContent = etqPeriodo(gran, A.ini, A.fin) + (A.en_curso ? ' (en curso)' : '');
     $('#a-tb').textContent = etqPeriodo(gran, B.ini, B.fin) + (B.en_curso ? ' (en curso)' : '');
@@ -725,6 +836,7 @@ const Admin = (() => {
       const hs = Array.from({ length: hr[1] - hr[0] + 1 }, (_, i) => hr[0] + i);
       dibujar('ch-cmp-hor', barras(hs.map(hora12), dos(hs.map(x => A.horas[x]), hs.map(x => B.horas[x]))));
     } else dibujar('ch-cmp-hor', {}, true);
+    actualizado();
   }
   function fijarGran(g) {
     gran = g; comparado = true;
@@ -769,8 +881,10 @@ const Admin = (() => {
   seg('#a-rangos', 'rango', r => { rango = r; cargarResumen(); });
 
   function entrar() {
+    cargarLib('vendor/chart.umd.min.js').catch(() => {});
     if (!pinA) { vista(false); $('#a-pin').focus(); return; }
     vista(true);
+    $('#a-act').textContent = ''; $('#a-error').classList.add('hidden');       // nada de horas viejas de otra sesión
     $('#a-cli').classList.add('hidden'); $('#a-seg').classList.add('hidden'); $('#a-home').classList.remove('hidden');
     setModo(modo);
   }

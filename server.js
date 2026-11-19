@@ -11,6 +11,7 @@ if (String(process.env.MONGODB_URI || '').startsWith('encrypted:')) {
 }
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const ExcelJS = require('exceljs');
 const { MongoClient } = require('mongodb');
 const crypto = require('crypto');
@@ -155,6 +156,7 @@ const app = express();
 // Cuántos proxies hay delante del servidor (Render/Railway = 1). Si pones un número mal, las IPs se pueden falsificar.
 app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
 app.disable('x-powered-by');
+app.use(compression());                              // comprime página, estilos, scripts y respuestas JSON (baja el peso ~70 %)
 app.use((req, res, next) => {                        // cabeceras de seguridad
   res.set({
     'X-Content-Type-Options': 'nosniff',
@@ -503,6 +505,7 @@ const limSeguridad = L.limitar('seguridad', { max: 30, ventanaMs: H });
 const ACCIONES_SEGURIDAD = ['CAMBIO_CLAVE_ADMIN', 'CAMBIO_PIN_CAJA', 'CODIGO_RECUPERACION_NUEVO', 'RECUPERACION_USADA', 'RECUPERACION_FALLIDA', 'RESET_ADMIN_PC', 'CREDENCIALES_INICIALES', 'EXCEL_COMPLETO', 'EXCEL_CODIGO_FALLIDO'];
 const textoActual = req => String(req.body?.actual ?? '');
 const POR_PAG = 10;
+const DIAS_INACTIVO = 30, LISTA_DASH = 8;                       // «sin venir hace 30 días» y cuántos nombres muestra el dashboard
 const paginar = (req, total) => {
   const paginas = Math.max(1, Math.ceil(total / POR_PAG));
   return { paginas, pag: Math.min(Math.max(parseInt(req.query.pag) || 1, 1), paginas) };
@@ -567,7 +570,7 @@ app.post('/api/admin/recuperar', ah(async (req, res) => {
 }));
 
 // Lee de Mongo lo que ocurrió entre dos días (inclusive, hora de Bogotá) y lo resume
-async function cargarPeriodo(ini, fin, bucket = 'dia') {
+async function cargarPeriodo(ini, fin, bucket = 'dia', hoy = null) {
   const rango = { $gte: E.inicioDia(ini), $lt: E.inicioDia(E.sumarDias(fin, 1)) };
   const [registros, visitas, canjes, cals] = await Promise.all([
     clientes.find({ fecha_registro: rango }, { projection: { fecha_registro: 1 } }).toArray(),
@@ -575,7 +578,10 @@ async function cargarPeriodo(ini, fin, bucket = 'dia') {
     movimientos.countDocuments({ tipo: 'CANJE', fecha: rango }),
     calificaciones.find({ fecha: rango }, { projection: { estado: 1, vence: 1, general: 1, servicio: 1, comida: 1, lugar: 1 } }).toArray(),
   ]);
-  return E.calcular({ ini, fin, bucket, registros, visitas, canjes, cals });
+  const r = E.calcular({ ini, fin, bucket, registros, visitas, canjes, cals });
+  // «Hoy» ya viene dentro de este periodo: se calcula con los mismos datos en vez de volver a consultar Mongo
+  if (hoy) r.hoy = E.calcular({ ini: hoy, fin: hoy, registros: registros.filter(x => E.ymdDe(x.fecha_registro) === hoy), visitas: visitas.filter(x => E.ymdDe(x.fecha) === hoy) });
+  return r;
 }
 
 // 7a) Resumen general: ?rango=7d | 30d | 12m | todo
@@ -593,31 +599,78 @@ app.get('/api/admin/dashboard', soloAdmin, ah(async (req, res) => {
   const dias = Math.round((new Date(hoy) - new Date(ini)) / 86400000) + 1;
   const bucket = dias > 62 ? 'mes' : 'dia';                        // muchos días → barras por mes
 
-  const [p, h, totalClientes] = await Promise.all([cargarPeriodo(ini, hoy, bucket), cargarPeriodo(hoy, hoy), clientes.countDocuments({})]);
+  // Periodo anterior de la misma duración (para los ▲ / ▼). «Todo» no tiene un «antes» con el cual comparar.
+  const ant = rango === 'todo' ? null : E.periodoAnterior(ini, hoy);
+  const filtroInactivos = { ultima_visita: { $lt: E.limiteInactividad(hoy, DIAS_INACTIVO) } };   // null no cuenta: quien nunca vino no «dejó de venir»
+  const filtroCerca = { puntos: META - 1 };                                                      // le falta UNA visita para la cortesía
+  const marcas = { projection: { nombre: 1, ultima_visita: 1, puntos: 1 } };
+
+  const [p, totalClientes, previo, nInactivos, inactivos, nCerca, cerca] = await Promise.all([
+    cargarPeriodo(ini, hoy, bucket, hoy), clientes.countDocuments({}),
+    ant ? cargarPeriodo(ant.ini, ant.fin, bucket) : null,
+    clientes.countDocuments(filtroInactivos),
+    clientes.find(filtroInactivos, marcas).sort({ ultima_visita: -1 }).limit(LISTA_DASH).toArray(),   // los que se enfriaron hace poco: los más fáciles de recuperar
+    clientes.countDocuments(filtroCerca),
+    clientes.find(filtroCerca, marcas).sort({ ultima_visita: 1 }).limit(LISTA_DASH).toArray(),         // los que más llevan esperando su última visita primero
+  ]);
+  const h = p.hoy;
+  const fila = c => ({ id: c._id, nombre: c.nombre, dias: c.ultima_visita ? E.diasDesde(c.ultima_visita) : null, puntos: c.puntos });
   res.json({
     ok: true, rango: { ini, fin: hoy, bucket },
     total_clientes: totalClientes,
     hoy: { visitas: h.visitas, unicos: h.unicos, registros: h.registros },
     periodo: { registros: p.registros, visitas: p.visitas, unicos: p.unicos, canjes: p.canjes },
-    activos: { con_visita: Math.min(p.unicos, totalClientes), sin_visita: Math.max(totalClientes - p.unicos, 0) },
-    serie: p.serie, horas: p.horas, calif: p.calif,
+    anterior: previo && { ini: ant.ini, fin: ant.fin },
+    cambio: previo && {
+      registros: E.variacion(p.registros, previo.registros),
+      visitas: E.variacion(p.visitas, previo.visitas),
+      canjes: E.variacion(p.canjes, previo.canjes),
+      general: E.variacion(p.calif.general, previo.calif.general),                 // en estrellas (dif), no en porcentaje
+    },
+    accion: {
+      dias_inactivo: DIAS_INACTIVO, meta: META,
+      inactivos: { total: nInactivos, lista: inactivos.map(fila) },
+      cerca: { total: nCerca, lista: cerca.map(fila) },
+    },
+    serie: p.serie, horas: p.horas, mapa: p.mapa, calif: p.calif,
   });
 }));
 
 // 7b) Lista de clientes con su calificación general promedio; ?q= para buscar (nombre, código, correo o WhatsApp)
+//     ?orden=nombre (A–Z, por defecto) | calif (mejor calificados primero) | visita (más tiempo sin venir primero)
+const ORDENES = ['nombre', 'calif', 'visita'];
+// Promedio y cantidad de calificaciones por cliente; con ids solo de esos clientes, sin ids de todos
+const mediasDe = async ids => new Map((await calificaciones.aggregate([
+  { $match: { ...(ids && { id: { $in: ids } }), general: { $type: 'number' } } },
+  { $group: { _id: '$id', general: { $avg: '$general' }, n: { $sum: 1 } } },
+]).toArray()).map(x => [x._id, x]));
+
 app.get('/api/admin/clientes', soloAdmin, ah(async (req, res) => {
   const q = String(req.query.q || '').trim();
   const filtro = q ? filtroBusqueda(q) : {};
+  const orden = ORDENES.includes(req.query.orden) ? req.query.orden : 'nombre';
   const total = await clientes.countDocuments(filtro);
   const { pag, paginas } = paginar(req, total);                // 10 por página, también en la búsqueda
-  const lista = await clientes.find(filtro, { projection: { nombre: 1 } })
-    .sort({ nombre_norm: 1, _id: 1 }).skip((pag - 1) * POR_PAG).limit(POR_PAG).toArray();
-  const medias = await calificaciones.aggregate([
-    { $match: { id: { $in: lista.map(c => c._id) }, general: { $type: 'number' } } },
-    { $group: { _id: '$id', general: { $avg: '$general' }, n: { $sum: 1 } } },
-  ]).toArray();
-  const m = new Map(medias.map(x => [x._id, x]));
-  res.json({ ok: true, total, pag, paginas, clientes: lista.map(c => ({ id: c._id, nombre: c.nombre, general: E.redondear(m.get(c._id)?.general), n: m.get(c._id)?.n || 0 })) });
+  const proy = { projection: { nombre: 1, nombre_norm: 1, ultima_visita: 1 } };
+  let pagina, m;
+  if (orden === 'nombre') {
+    pagina = await clientes.find(filtro, proy).sort({ nombre_norm: 1, _id: 1 }).skip((pag - 1) * POR_PAG).limit(POR_PAG).toArray();
+    m = await mediasDe(pagina.map(c => c._id));
+  } else {
+    // Ordenar por calificación o por última visita exige mirar a todos los clientes (solo nombre y fecha), no solo a los 10 de la página
+    const todos = await clientes.find(filtro, proy).toArray();
+    if (orden === 'calif') m = await mediasDe(q ? todos.map(c => c._id) : null);
+    const filas = todos.map(c => ({ ...c, id: c._id, general: m?.get(c._id)?.general ?? null, n: m?.get(c._id)?.n || 0 }));
+    pagina = E.ordenarClientes(filas, orden).slice((pag - 1) * POR_PAG, pag * POR_PAG);
+    if (!m) m = await mediasDe(pagina.map(c => c._id));
+  }
+  res.json({
+    ok: true, total, pag, paginas, orden,
+    clientes: pagina.map(c => ({
+      id: c._id, nombre: c.nombre, general: E.redondear(m.get(c._id)?.general), n: m.get(c._id)?.n || 0,
+      dias: c.ultima_visita ? E.diasDesde(c.ultima_visita) : null,       // días desde su última visita (null = nunca ha venido)
+    })),
+  });
 }));
 
 // 7c) Detalle de un cliente: visitas, premios canjeados (con fecha), calificaciones y comentarios
@@ -658,7 +711,13 @@ app.get('/api/admin/comparar', soloAdmin, ah(async (req, res) => {
 
 /* Frontend: se sirve la carpeta ./public */
 const PUBLIC = path.join(__dirname, 'public');
-if (fs.existsSync(PUBLIC)) app.use(express.static(PUBLIC));
+if (fs.existsSync(PUBLIC)) app.use(express.static(PUBLIC, {
+  setHeaders(res, archivo) {
+    if (/\.html?$/.test(archivo)) res.setHeader('Cache-Control', 'no-cache');                                    // la página siempre revisa si cambió
+    else if (/[\\/]vendor[\\/]|logo\.webp$/.test(archivo)) res.setHeader('Cache-Control', 'public, max-age=2592000');   // librerías y logo: 30 días
+    else res.setHeader('Cache-Control', 'public, max-age=600');                                                    // estilos y scripts propios: 10 min
+  },
+}));
 
 app.use('/api', (req, res) => fallo(res, 404, 'Ruta no encontrada.'));
 app.use((err, req, res, next) => {           // JSON mal formado u otros errores
@@ -727,8 +786,11 @@ const mongo = new MongoClient(MONGODB_URI);
   await clientes.createIndex({ whatsapp_h: 1 }, { unique: true, partialFilterExpression: { whatsapp_h: { $type: 'string' } } });
   await clientes.createIndex({ rec_h: 1 });
   await clientes.createIndex({ nombre_norm: 1 });
+  await clientes.createIndex({ fecha_registro: 1 });            // panel admin: nuevos por periodo y primer registro
+  await clientes.createIndex({ ultima_visita: 1 });             // panel admin: clientes que llevan días sin venir
   await auditoria.createIndex({ fecha: -1 });
   await movimientos.createIndex({ fecha: -1 });
+  await movimientos.createIndex({ tipo: 1, fecha: -1 });        // panel admin: visitas y canjes por periodo
   await movimientos.createIndex({ id: 1, fecha: 1 });          // historial de un cliente (panel admin)
   await calificaciones.createIndex({ fecha: -1 });
   await calificaciones.createIndex({ id: 1, estado: 1 });

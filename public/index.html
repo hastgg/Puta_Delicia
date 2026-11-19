@@ -8,13 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rye&family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = { theme: { extend: {
-  colors: { fire:'#E62E2D', fired:'#B91C1C', card:'#121212', ink:'#1A1A1A', ember:'#F59E0B' },
-  fontFamily: { title:['Rye','serif'], display:['"Bebas Neue"','sans-serif'], sans:['Inter','sans-serif'] }
-}}};
-</script>
+<link rel="stylesheet" href="tailwind.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body class="text-white min-h-screen flex justify-center md:items-center md:p-6">
@@ -26,7 +20,7 @@ tailwind.config = { theme: { extend: {
 
 <!-- ============ SPLASH ============ -->
 <div id="splash" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center px-6 text-center transition-opacity duration-700">
-  <img src="logo.png" alt="Puta Delicia BBQ" class="w-full max-w-[520px]">
+  <img src="logo.webp" alt="Puta Delicia BBQ" class="w-full max-w-[520px]">
   <p class="text-[#A3A3A3] tracking-[.3em] text-xs sm:text-sm mt-2 mb-9">CLUB DE FIDELIDAD • TEXAN BBQ</p>
   <button id="btn-enter" class="btn btn-red max-w-[320px]">ENTRAR AL CLUB BBQ</button>
 </div>
@@ -36,7 +30,7 @@ tailwind.config = { theme: { extend: {
 
 <!-- ============ APP ============ -->
 <div class="shell relative w-full max-w-[450px] min-h-screen md:min-h-[780px] bg-black md:rounded-3xl md:border border-[#262626] md:shadow-[0_0_70px_rgba(230,46,45,.18)] overflow-hidden">
-<img src="logo.png" alt="Puta Delicia BBQ" class="w-48 mx-auto -mt-2">
+<img src="logo.webp" alt="Puta Delicia BBQ" class="w-48 mx-auto -mt-2">
   <nav class="flex border-b border-[#262626] text-sm font-semibold">
     <button data-tab="registro" class="tab flex-1 py-4">Registro</button>
     <button data-tab="tarjeta"  class="tab flex-1 py-4">Mi tarjeta</button>
@@ -257,16 +251,23 @@ tailwind.config = { theme: { extend: {
               <button type="button" data-rango="todo" aria-pressed="false">Todo</button>
             </div>
           </div>
-          <div class="flex justify-end mt-3"><button id="a-todo" type="button" class="acc-all" data-acc="#a-resumen">Expandir todo</button></div>
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3">
+            <span id="a-act" class="upd"></span>
+            <span class="flex items-center gap-3">
+              <button id="a-refrescar" type="button" class="upd-btn"><span class="upd-ico" aria-hidden="true">↻</span> Actualizar</button>
+              <button id="a-todo" type="button" class="acc-all" data-acc="#a-resumen">Expandir todo</button>
+            </span>
+          </div>
+          <div id="a-error" class="a-error hidden" role="alert"><span>No se pudo cargar la información.</span> <button id="a-reintentar" type="button">Reintentar</button></div>
 
           <!-- RESUMEN -->
           <div id="a-resumen" class="mt-5">
             <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div class="kpi"><span>Clientes registrados</span><b id="k-total">–</b><small id="k-total-s"></small></div>
+              <div class="kpi"><span>Clientes registrados</span><b id="k-total">–</b><small id="k-total-s"></small><p class="dl" id="k-total-d"></p></div>
               <div class="kpi"><span>Visitas hoy</span><b id="k-hoy">–</b><small id="k-hoy-s"></small></div>
-              <div class="kpi"><span>Visitas del periodo</span><b id="k-vis">–</b><small id="k-vis-s"></small></div>
-              <div class="kpi"><span>Premios canjeados</span><b id="k-canj">–</b><small>en el periodo</small></div>
-              <div class="kpi col-span-2 md:col-span-1"><span>Calificación general</span><b id="k-cal">–</b><small id="k-cal-s"></small></div>
+              <div class="kpi"><span>Visitas del periodo</span><b id="k-vis">–</b><small id="k-vis-s"></small><p class="dl" id="k-vis-d"></p></div>
+              <div class="kpi"><span>Premios canjeados</span><b id="k-canj">–</b><small>en el periodo</small><p class="dl" id="k-canj-d"></p></div>
+              <div class="kpi col-span-2 md:col-span-1"><span>Calificación general</span><b id="k-cal">–</b><small id="k-cal-s"></small><p class="dl" id="k-cal-d"></p></div>
             </div>
 
             <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
@@ -274,6 +275,13 @@ tailwind.config = { theme: { extend: {
               <details class="panel acc order-first lg:order-last">
                 <summary><span class="acc-t"><h3>Clientes</h3><span id="l-total" class="sub">Lista y calificación</span></span></summary>
                 <div class="acc-body">
+                  <label class="ord"><span>Ordenar por</span>
+                    <select id="l-orden" aria-label="Ordenar la lista de clientes">
+                      <option value="nombre">Nombre (A–Z)</option>
+                      <option value="calif">Mejor calificados</option>
+                      <option value="visita">Más tiempo sin venir</option>
+                    </select>
+                  </label>
                   <div id="l-lista" class="clist"></div>
                   <div id="l-pag" class="pager hidden"></div>
                   <p id="l-nota" class="sub mt-2 hidden"></p>
@@ -288,15 +296,26 @@ tailwind.config = { theme: { extend: {
                   </div>
                 </details>
                 <details class="panel acc">
-                  <summary><span class="acc-t"><h3>Clientes activos</h3><span class="sub">Con al menos una visita en el periodo</span></span></summary>
+                  <summary><span class="acc-t"><h3>A quién escribirle</h3><span id="x-sub" class="sub">Clientes a punto de ganar o que dejaron de venir</span></span></summary>
                   <div class="acc-body">
-                    <div class="chart-box"><canvas id="ch-activos" role="img" aria-label="Torta de clientes activos frente a inactivos"></canvas><p class="chart-empty">Aún no hay clientes</p></div>
+                    <p class="mini"><span id="x-cerca-t">A una visita de la cortesía</span><b id="x-cerca-n"></b></p>
+                    <div id="x-cerca" class="clist"></div>
+                    <p class="mini mt-4"><span id="x-inact-t">Sin venir hace 30 días o más</span><b id="x-inact-n"></b></p>
+                    <div id="x-inact" class="clist"></div>
                   </div>
                 </details>
                 <details class="panel acc">
                   <summary><span class="acc-t"><h3>Horas más llenas</h3><span id="h-pico" class="sub">Visitas por hora del día</span></span></summary>
                   <div class="acc-body">
                     <div class="chart-box"><canvas id="ch-horas" role="img" aria-label="Barras de visitas por hora del día"></canvas><p class="chart-empty">Sin visitas en este periodo</p></div>
+                  </div>
+                </details>
+                <details class="panel acc md:col-span-2">
+                  <summary><span class="acc-t"><h3>Mapa de calor: día × hora</h3><span id="m-sub" class="sub">Cuándo se llena el local</span></span></summary>
+                  <div class="acc-body">
+                    <div id="m-mapa" class="hm-wrap"></div>
+                    <p id="m-vacio" class="vacio hidden">Sin visitas en este periodo</p>
+                    <p id="m-pie" class="mini mt-3"></p>
                   </div>
                 </details>
                 <details class="panel acc">
@@ -498,9 +517,7 @@ tailwind.config = { theme: { extend: {
   </button>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="app.js"></script>
+<script src="vendor/qrcode.min.js" defer></script>
+<script src="app.js" defer></script>
 </body>
 </html>
