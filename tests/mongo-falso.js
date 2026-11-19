@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Base de datos simulada en memoria (solo para las pruebas): imita lo mínimo del driver de MongoDB que usa el proyecto.
- * Soporta filtros por igualdad, rutas con punto ('recuperacion.rid'), $in, $exists, $type, $or; $set; upsert; sort/limit.
+ * Soporta filtros por igualdad, rutas con punto ('recuperacion.rid'), $in, $exists, $type, $or; $set; upsert; sort/skip/limit.
  */
 const get = (o, ruta) => ruta.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
 function set(o, ruta, v) { const p = ruta.split('.'); let a = o; for (const k of p.slice(0, -1)) a = a[k] ??= {}; a[p.at(-1)] = v; }
@@ -25,12 +25,12 @@ class Coleccion {
   constructor() { this.docs = []; }
   async findOne(f) { return clon(this.docs.find(d => coincide(d, f))) ?? null; }
   find(f) {
-    let r = this.docs.filter(d => coincide(d, f)), o = null, l = Infinity;
+    let r = this.docs.filter(d => coincide(d, f)), o = null, l = Infinity, sk = 0;
     const cur = {
-      sort(s) { o = s; return cur; }, limit(n) { l = n; return cur; },
+      sort(s) { o = s; return cur; }, limit(n) { l = n; return cur; }, skip(n) { sk = n; return cur; },
       async toArray() {
         if (o) { const [k, dir] = Object.entries(o)[0]; r = [...r].sort((a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0) * dir); }
-        return r.slice(0, l).map(clon);
+        return r.slice(sk, sk + l).map(clon);
       },
     };
     return cur;

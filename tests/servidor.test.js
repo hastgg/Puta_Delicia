@@ -9,6 +9,7 @@ const http = require('node:http');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const { MongoClientFalso, compartida } = require('./mongo-falso');
+const C = require('../lib/credenciales');
 
 const PORT = 38917, BASE = 'http://127.0.0.1:' + PORT;
 const SEMILLA_CLAVE = 'Brasa#Lenta-7731', SEMILLA_PIN = '482917';
@@ -115,16 +116,15 @@ test('cambiar PIN de caja: solo el dueño, con su contraseña actual y PIN no ob
 });
 
 let codigo;     // código de recuperación vigente (lo van pasando los tests siguientes)
-test('código de recuperación: se genera, se muestra una vez y no queda en claro', async () => {
+test('código de recuperación: se genera, se guarda solo con hash y la API nunca lo muestra', async () => {
+  // Desde V1.1 el panel ya no tiene ruta para generarlo: nace con «npm run reset-admin», que usa esta misma función.
   const ip = ipNueva();
-  assert.equal((await llamar('/api/admin/generar-codigo', { metodo: 'POST', body: { actual: 'mala' }, ip })).status, 401);
-  const r = await llamar('/api/admin/generar-codigo', { metodo: 'POST', body: { actual: SEMILLA_CLAVE }, ip });
-  assert.equal(r.status, 200); assert.match(r.codigo, /^[A-Z2-9]{4}(-[A-Z2-9]{4}){3}$/);
-  codigo = r.codigo;
-  assert.ok(!JSON.stringify(credenciales().docs).includes(codigo.replace(/-/g, '')));
+  codigo = await C.nuevoCodigo(credenciales());
+  assert.match(codigo, /^[A-Z2-9]{4}(-[A-Z2-9]{4}){3}$/);
+  assert.ok(!JSON.stringify(credenciales().docs).includes(codigo.replace(/-/g, '')));            // en la base solo queda el hash
   const s = await llamar('/api/admin/seguridad', { pin: SEMILLA_CLAVE, ip });
-  assert.equal(s.tiene_codigo, true); assert.ok(!JSON.stringify(s).includes(codigo));            // la API nunca lo vuelve a mostrar
-  assert.equal(eventos('CODIGO_RECUPERACION_NUEVO').length, 1);
+  assert.equal(s.tiene_codigo, true); assert.ok(!JSON.stringify(s).includes(codigo));            // la API nunca lo muestra
+  assert.equal((await llamar('/api/admin/generar-codigo', { metodo: 'POST', body: { actual: SEMILLA_CLAVE }, ip })).status, 404);   // la ruta antigua ya no existe
 });
 
 test('recuperar contraseña con el código: una sola vez, entrega código nuevo, deja bitácora', async () => {
