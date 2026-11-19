@@ -930,8 +930,9 @@ const Admin = (() => {
     } else dibujar('ch-cmp-hor', {}, true);
     actualizado();
   }
-  function fijarAtajo(a) {
+    function fijarAtajo(a) {
     atajo = a; comparado = true;
+    $('#a-atajo-sel').value = a;
     $('#a-atajos').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.atajo === a)));
     const custom = a === 'custom';
     $('#a-ca').classList.toggle('hidden', !custom); $('#a-cb').classList.toggle('hidden', !custom);
@@ -944,6 +945,7 @@ const Admin = (() => {
     $('#a-cerr').textContent = '';
   }
   seg('#a-atajos', 'atajo', fijarAtajo);
+  $('#a-atajo-sel').onchange = e => fijarAtajo(e.target.value);
   ['#a-ai', '#a-af', '#a-bi', '#a-bf'].forEach(x => { $(x).onchange = cargarComparar; });
   $('#a-igualar').onchange = cargarComparar;
 
