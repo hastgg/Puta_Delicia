@@ -505,6 +505,7 @@ const limSeguridad = L.limitar('seguridad', { max: 30, ventanaMs: H });
 const ACCIONES_SEGURIDAD = ['CAMBIO_CLAVE_ADMIN', 'CAMBIO_PIN_CAJA', 'CODIGO_RECUPERACION_NUEVO', 'RECUPERACION_USADA', 'RECUPERACION_FALLIDA', 'RESET_ADMIN_PC', 'CREDENCIALES_INICIALES', 'EXCEL_COMPLETO', 'EXCEL_CODIGO_FALLIDO'];
 const textoActual = req => String(req.body?.actual ?? '');
 const POR_PAG = 10;
+const HISTORIAL_MAX = 200;                                         // movimientos que muestra la ficha de un cliente (los más recientes)
 const DIAS_INACTIVO = 30, LISTA_DASH = 8;                       // «sin venir hace 30 días» y cuántos nombres muestra el dashboard
 const paginar = (req, total) => {
   const paginas = Math.max(1, Math.ceil(total / POR_PAG));
@@ -673,23 +674,37 @@ app.get('/api/admin/clientes', soloAdmin, ah(async (req, res) => {
   });
 }));
 
-// 7c) Detalle de un cliente: visitas, premios canjeados (con fecha), calificaciones y comentarios
+// 7c) Detalle de un cliente: visitas, premios canjeados, calificaciones y comentarios, más lo que se deduce de sus fechas
+//     (ritmo y estado, tarjeta, historial, próximo cumpleaños) y el promedio de TODOS los clientes para compararlo.
 app.get('/api/admin/cliente/:id', soloAdmin, ah(async (req, res) => {
   const id = idDe(req);
   const c = await clientes.findOne({ _id: id });
   if (!c) return fallo(res, 404, 'Cliente no encontrado.');
-  const [movs, cals] = await Promise.all([
+  const [movs, cals, todas] = await Promise.all([
     movimientos.find({ id, tipo: { $in: ['VISITA', 'CANJE'] } }, { projection: { fecha: 1, tipo: 1 } }).sort({ fecha: 1 }).toArray(),
     calificaciones.find({ id }).sort({ fecha: -1 }).toArray(),
+    calificaciones.find({ estado: 'CALIFICADA', fecha: { $gte: new Date(Date.now() - 365 * 86400000) } }, { projection: { general: 1, servicio: 1, comida: 1, lugar: 1 } }).toArray(),
   ]);
   const visitas = movs.filter(x => x.tipo === 'VISITA'), canjes = movs.filter(x => x.tipo === 'CANJE');
   const ahora = new Date();
   const sinCalificar = cals.filter(k => k.estado === 'NO_CALIFICO' || (k.estado === 'PENDIENTE' && k.vence <= ahora)).length;
+  const cli = completo(c);
+  const fv = visitas.map(x => x.fecha), fc = canjes.map(x => x.fecha);
+  const g = E.resumenCalificaciones(todas);                          // solo las cifras: los comentarios de otros clientes no salen de aquí
   res.json({
     ok: true,
-    cliente: { ...completo(c), visitas_totales: visitas.length, primera_visita: visitas[0]?.fecha ?? null },
+    cliente: { ...cli, visitas_totales: visitas.length, primera_visita: visitas[0]?.fecha ?? null },
     canjes: canjes.map(x => x.fecha).reverse(),                    // el más reciente primero
-    calif: { ...E.resumenCalificaciones(cals), sin_calificar: sinCalificar },
+    calif: {
+      ...E.resumenCalificaciones(cals), sin_calificar: sinCalificar,
+      serie: cals.filter(k => typeof k.general === 'number').map(k => ({ fecha: k.fecha, general: k.general })).reverse().slice(-30),   // de la más antigua a la más reciente
+    },
+    global: { general: g.general, servicio: g.servicio, comida: g.comida, lugar: g.lugar, n: g.n },
+    habitos: E.habitosCliente(fv, fc),                              // ritmo, estado, día y hora favoritos, visitas por mes
+    tarjeta: E.progresoTarjeta(fv, fc, META),
+    cumple: E.proximoCumple(cli.fecha_nacimiento, E.ymdDe(ahora)),
+    historial: [...movs].reverse().slice(0, HISTORIAL_MAX).map(x => ({ fecha: x.fecha, tipo: x.tipo })),   // visitas y canjes, lo último primero
+    historial_total: movs.length,
   });
 }));
 

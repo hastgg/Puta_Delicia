@@ -404,6 +404,9 @@
           <h2 id="ac-name" class="font-title text-3xl mt-3 break-words"></h2>
           <p id="ac-meta" class="text-[#A3A3A3] text-sm mt-1"></p>
 
+          <div id="ac-estado" class="estado hidden" role="status"><b id="ac-estado-t"></b><small id="ac-estado-s"></small></div>
+          <div id="ac-alerta" class="estado e-inactivo hidden" role="alert"><b id="ac-alerta-t"></b><small id="ac-alerta-s"></small></div>
+
           <div class="flex justify-end mt-3"><button type="button" class="acc-all" data-acc="#a-cli">Expandir todo</button></div>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
             <div class="kpi"><span>Veces que ha venido</span><b id="ac-vis">–</b><small id="ac-vis-s"></small></div>
@@ -412,20 +415,55 @@
             <div class="kpi"><span>Calificación general</span><b id="ac-cal">–</b><small id="ac-cal-s"></small></div>
           </div>
 
+          <div class="grid md:grid-cols-2 gap-4 mt-4 items-start">
+            <div class="panel" id="ac-tarjeta">
+              <h3>Su tarjeta</h3>
+              <div class="prog" id="ac-prog" role="progressbar" aria-label="Visitas de la tarjeta actual" aria-valuemin="0"><i id="ac-prog-b"></i></div>
+              <p id="ac-prog-t" class="mt-3 font-semibold"></p>
+              <small id="ac-prog-s" class="block mt-1 text-[#A3A3A3] text-xs"></small>
+            </div>
+            <div class="panel" id="ac-contacto">
+              <h3>Escribirle</h3>
+              <p id="ac-cont-i" class="text-[#A3A3A3] text-xs mt-1"></p>
+              <textarea id="ac-msg" class="field mt-3" rows="3" maxlength="400" aria-label="Mensaje para el cliente"></textarea>
+              <div class="flex flex-wrap items-center gap-3 mt-3">
+                <a id="ac-wa" class="btn-wa" target="_blank" rel="noopener noreferrer">Abrir en WhatsApp</a>
+                <small id="ac-wa-n" class="text-[#6b6b6b] text-xs"></small>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
+            <details class="panel acc lg:col-span-2" open>
+              <summary><span class="acc-t"><h3>Visitas por mes</h3><span class="sub">Últimos 12 meses, con los premios canjeados</span></span></summary>
+              <div class="acc-body"><div class="chart-box"><canvas id="ac-mes" role="img" aria-label="Barras de las visitas y los premios canjeados del cliente en cada uno de los últimos 12 meses"></canvas><p class="chart-empty">Este cliente aún no ha venido</p></div></div>
+            </details>
+            <details class="panel acc" open>
+              <summary><span class="acc-t"><h3>Sus hábitos</h3><span class="sub">Cada cuánto viene y cuándo</span></span></summary>
+              <div class="acc-body"><dl id="ac-hab" class="habitos"></dl></div>
+            </details>
+          </div>
+
           <div class="grid lg:grid-cols-3 gap-4 mt-4 items-start">
             <details class="panel acc">
               <summary><span class="acc-t"><h3>Premios canjeados</h3><span class="sub">Fecha de cada cortesía</span></span></summary>
-              <div class="acc-body"><ul id="ac-canjes" class="space-y-2 text-sm max-h-64 overflow-y-auto"></ul></div>
+              <div class="acc-body"><ul id="ac-canjes" class="space-y-2 text-sm"></ul><div id="ac-canjes-p" class="pager hidden"></div></div>
             </details>
-            <details class="panel acc">
-              <summary><span class="acc-t"><h3>Sus calificaciones</h3><span class="sub">De 1 a 5 estrellas</span></span></summary>
-              <div class="acc-body"><div class="chart-box"><canvas id="ac-pie" role="img" aria-label="Torta de las calificaciones generales del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div></div>
-            </details>
-            <details class="panel acc">
-              <summary><span class="acc-t"><h3>Promedio por aspecto</h3><span class="sub">Servicio, comida y lugar</span></span></summary>
+            <details id="ac-aspecto" class="panel acc">
+              <summary><span class="acc-t"><h3>Promedio por aspecto</h3><span class="sub">Frente al promedio de todos los clientes</span></span></summary>
               <div class="acc-body"><div class="chart-box"><canvas id="ac-bar" role="img" aria-label="Barras del promedio de servicio, comida y lugar del cliente"></canvas><p class="chart-empty">Este cliente aún no califica</p></div></div>
             </details>
+            <details id="ac-tiempo" class="panel acc">
+              <summary><span class="acc-t"><h3>Sus calificaciones en el tiempo</h3><span class="sub">Calificación general de cada visita</span></span></summary>
+              <div class="acc-body"><div class="chart-box"><canvas id="ac-hist" role="img" aria-label="Línea de la calificación general del cliente en cada visita calificada"></canvas><p class="chart-empty">Hacen falta al menos 2 calificaciones</p></div></div>
+            </details>
           </div>
+          <p id="ac-sincal" class="text-[#A3A3A3] text-sm mt-4 hidden">Este cliente aún no califica: cuando lo haga, aquí verás sus promedios de servicio, comida y lugar.</p>
+
+          <details id="ac-historial" class="panel acc mt-4">
+            <summary><span class="acc-t"><h3 id="ac-historial-t">Historial</h3><span class="sub">Cada visita y cada cortesía canjeada, de la más reciente a la más antigua</span></span></summary>
+            <div class="acc-body"><ul id="ac-historial-l" class="space-y-2 text-sm"></ul><div id="ac-historial-p" class="pager hidden"></div><p id="ac-historial-n" class="text-xs text-[#6b6b6b] mt-2 hidden"></p></div>
+          </details>
 
           <!-- Comentarios: cerrados por defecto para no ser intrusivos -->
           <details id="ac-com" class="comentarios mt-4">

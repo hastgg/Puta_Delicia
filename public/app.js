@@ -753,6 +753,30 @@ const Admin = (() => {
   sug.onclick = e => { const id = e.target.closest('.crow')?.dataset.id; if (id) abrirCliente(id); };
 
   /* ---------- Ficha de un cliente ---------- */
+  const cap = t => t[0].toUpperCase() + t.slice(1);
+  // Mensaje sugerido para escribirle al cliente, según lo más importante que le pasa ahora (el dueño puede editarlo antes de enviarlo)
+  const MARCA = 'Puta Delicia BBQ House';
+  function mensajeSugerido(c, hb, tj, cumple) {
+    const nom = c.nombre.trim().split(/\s+/)[0];
+    if (cumple && cumple.dias === 0) return `¡Feliz cumpleaños, ${nom}! 🎉 En ${MARCA} queremos celebrarlo contigo. ¡Te esperamos!`;
+    if (cumple && cumple.dias <= 7) return `¡Hola ${nom}! Se acerca tu cumpleaños 🎂 y en ${MARCA} queremos celebrarlo contigo. ¡Te esperamos!`;
+    if (c.premio_listo || tj.listo) return `¡Hola ${nom}! Ya completaste tu tarjeta de ${MARCA} 🎉 Tienes una cortesía lista para canjear. ¡Te esperamos!`;
+    if ((c.meta || GOAL) - c.puntos === 1) return `¡Hola ${nom}! Te falta solo 1 visita para tu cortesía en ${MARCA} 🍖 ¿Cuándo te esperamos?`;
+    if (hb.estado === 'enfriando' || hb.estado === 'inactivo') return `¡Hola ${nom}! Te extrañamos en ${MARCA} 🍖 Te esperamos pronto.`;
+    return `¡Hola ${nom}! Gracias por visitarnos en ${MARCA} 🍖`;
+  }
+  const desdeDias = d => (d === 0 ? 'desde hoy' : d === 1 ? 'desde ayer' : `desde hace ${d} días`);
+  const fCorta = iso => corto(new Date(iso).toLocaleDateString('es-CO', { timeZone: TZ, day: 'numeric', month: 'short' }));
+  const haceDias = d => (d === 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`);
+  const cadaDias = r => (r === 1 ? 'a diario' : `cada ${r} días`);
+  // Título y detalle de la franja de estado de la ficha del cliente
+  const ESTADOS_CLIENTE = {
+    sin_visitas: ['Aún no ha venido', () => 'Se registró, pero todavía no tiene visitas.'],
+    nuevo: ['Cliente nuevo', h => `${plural(h.visitas, 'visita', 'visitas')} · la última fue ${haceDias(h.dias_sin_venir)}. Con 3 visitas calculamos cada cuánto suele venir.`],
+    activo: ['Al día', h => `Suele venir ${cadaDias(h.ritmo)} · la última visita fue ${haceDias(h.dias_sin_venir)}.`],
+    enfriando: ['Se está enfriando', h => `Suele venir ${cadaDias(h.ritmo)} y lleva ${plural(h.dias_sin_venir, 'día', 'días')} sin venir.`],
+    inactivo: ['Inactivo', h => (h.ritmo ? `Suele venir ${cadaDias(h.ritmo)} y lleva ${plural(h.dias_sin_venir, 'día', 'días')} sin venir.` : `Lleva ${plural(h.dias_sin_venir, 'día', 'días')} sin venir.`)],
+  };
   async function abrirCliente(id) {
     const r = await pedir('/api/admin/cliente/' + encodeURIComponent(id));
     if (!r) return;
@@ -769,14 +793,100 @@ const Admin = (() => {
     $('#ac-tar').innerHTML = `${c.puntos}<em>/ ${GOAL}</em>`;
     $('#ac-cal').innerHTML = k.general == null ? '–' : `${num(k.general)}<em>★</em>`;
     $('#ac-cal-s').textContent = (k.n ? plural(k.n, 'calificación', 'calificaciones') : 'sin calificaciones') + (k.sin_calificar ? ` · ${k.sin_calificar} sin calificar` : '');
-    $('#ac-canjes').innerHTML = r.canjes.length
-      ? r.canjes.map(f => `<li class="flex items-baseline justify-between gap-3"><span>Cortesía canjeada</span><span class="text-[#A3A3A3] text-right">${fFechaHora(f)}</span></li>`).join('')
-      : '<li class="text-[#6b6b6b]">Aún no ha canjeado ninguna cortesía.</li>';
+    // De 10 en 10, igual que el historial
+    const pintarCanjes = pag => {
+      const paginas = Math.max(1, Math.ceil(r.canjes.length / 10));
+      pag = Math.min(Math.max(pag, 1), paginas);
+      $('#ac-canjes').innerHTML = r.canjes.slice((pag - 1) * 10, pag * 10).map(f => `<li class="flex items-baseline justify-between gap-3"><span>Cortesía canjeada</span><span class="text-[#A3A3A3] text-right">${fFechaHora(f)}</span></li>`).join('')
+        || '<li class="text-[#6b6b6b]">Aún no ha canjeado ninguna cortesía.</li>';
+      pintarPager($('#ac-canjes-p'), { pag, paginas }, pintarCanjes);
+    };
+    pintarCanjes(1);
 
-    tortaEstrellas('ac-pie')(k.dist.general, k.n);
-    dibujar('ac-bar', barras(CAMPOS.map(([key, nombre]) => `${nombre} · ${num(k[key])}`),
-      [{ label: 'Promedio', data: CAMPOS.map(([key]) => k[key] ?? 0), backgroundColor: CAMPOS.map(x => x[2]) }],
-      { legend: false, y: { max: 5, ticks: { stepSize: 1, precision: 0 } } }), !k.n);
+    // Estado frente a su propio ritmo, visitas por mes y hábitos (todo calculado en el servidor a partir de sus fechas)
+    const hb = r.habitos;
+    const [tit, det] = ESTADOS_CLIENTE[hb.estado];
+    $('#ac-estado').className = 'estado e-' + hb.estado;
+    $('#ac-estado-t').textContent = tit; $('#ac-estado-s').textContent = det(hb);
+    const pm = hb.por_mes;
+    dibujar('ac-mes', barras(pm.map(x => etqBarra(x.k, 'mes')), [
+      { label: 'Visitas', data: pm.map(x => x.visitas), backgroundColor: FIRE },
+      { label: 'Premios canjeados', data: pm.map(x => x.canjes), backgroundColor: EMBER },
+    ], { y: { ticks: { stepSize: 1, precision: 0 } } }), !hb.visitas);
+    const fila = (nombre, valor, nota) => `<div><dt>${nombre}</dt><dd>${valor}${nota ? `<small>${nota}</small>` : ''}</dd></div>`;
+    const sinDato = hb.visitas < 3 ? 'Se calcula desde la 3.ª visita' : 'Sin un patrón fijo';
+    $('#ac-hab').innerHTML =
+      fila('Suele venir', hb.ritmo ? cadaDias(hb.ritmo) : '–', hb.ritmo ? '' : sinDato) +
+      fila('Día favorito', hb.dia_favorito ? cap(DIAS_LARGO[hb.dia_favorito.d]) : '–', hb.dia_favorito ? `${hb.dia_favorito.n} de ${hb.visitas} visitas` : sinDato) +
+      fila('Hora favorita', hb.hora_favorita ? hora12(hb.hora_favorita.h) : '–', hb.hora_favorita ? `${hb.hora_favorita.n} de ${hb.visitas} visitas` : sinDato);
+    // Su tarjeta de fidelidad: progreso, si ya tiene la cortesía lista (y desde cuándo) y cuánto tarda en llenar una
+    const tj = r.tarjeta, meta = c.meta || GOAL, pts = Math.min(c.puntos, meta), listo = c.premio_listo || c.puntos >= meta, faltan = Math.max(0, meta - c.puntos);
+    $('#ac-prog-b').style.width = `${pts / meta * 100}%`;
+    $('#ac-prog').classList.toggle('listo', listo); $('#ac-prog').setAttribute('aria-valuemax', meta); $('#ac-prog').setAttribute('aria-valuenow', pts);
+    $('#ac-prog-t').textContent = listo
+      ? `¡Cortesía lista para canjear!${tj.listo_dias != null ? ' ' + cap(desdeDias(tj.listo_dias)) + '.' : ''}`
+      : `${pts} de ${meta} visitas · ${faltan === 1 ? 'le falta' : 'le faltan'} ${faltan}`;
+    $('#ac-prog-s').textContent = (tj.tarjetas_completas
+      ? `${plural(tj.tarjetas_completas, 'tarjeta completada', 'tarjetas completadas')} · tarda unos ${plural(tj.promedio_dias, 'día', 'días')} en llenar una.`
+      : 'Aún no ha completado ninguna tarjeta.')
+      + (!listo && hb.ritmo ? ` A su ritmo, la cortesía le llega en unos ${plural(faltan * hb.ritmo, 'día', 'días')}.` : '');
+
+    // Escribirle: enlace de WhatsApp (abre tu WhatsApp con el mensaje escrito; no hace falta WhatsApp Business) y aviso de si aceptó promociones
+    const tel = String(c.whatsapp || '').replace(/\D/g, ''), telOk = tel.length >= 10 && tel.length <= 15;
+    const cumple = r.cumple;
+    $('#ac-cont-i').textContent = [
+      cumple ? (cumple.dias === 0 ? 'Cumple años hoy.' : `Cumple el ${ymd('2000-' + cumple.md, { day: 'numeric', month: 'long' })} (${cumple.dias === 1 ? 'mañana' : 'en ' + plural(cumple.dias, 'día', 'días')}).`) : '',
+      c.acepta_notificaciones ? 'Aceptó recibir promociones.' : 'No aceptó recibir promociones: escríbele solo por algo puntual, como avisarle de su premio.',
+    ].filter(Boolean).join(' ');
+    const msg = $('#ac-msg'), wa = $('#ac-wa');
+    msg.value = mensajeSugerido(c, hb, tj, cumple);
+    const enlace = () => { if (telOk) wa.href = `https://wa.me/${tel}?text=${encodeURIComponent(msg.value.trim())}`; else wa.removeAttribute('href'); };
+    msg.oninput = enlace; enlace();
+    wa.classList.toggle('off', !telOk);
+    $('#ac-wa-n').textContent = telOk ? 'Se abre tu WhatsApp con este mensaje; tú decides si enviarlo.' : 'Este cliente no tiene un número válido para WhatsApp.';
+
+    // Alerta: su última calificación fue baja y reciente
+    const ult = k.serie.at(-1), hace = ult ? Math.floor((Date.now() - new Date(ult.fecha)) / 86400000) : null;
+    const alerta = ult && ult.general <= 2 && hace <= 60;
+    $('#ac-alerta').classList.toggle('hidden', !alerta);
+    if (alerta) {
+      const coment = k.comentarios.find(m => m.fecha === ult.fecha)?.comentario;
+      $('#ac-alerta-t').textContent = `Requiere atención: su última calificación fue de ${num(ult.general)} ★`;
+      $('#ac-alerta-s').textContent = `${cap(haceDias(hace))}${coment ? ` · «${coment}»` : ''}`;
+    }
+
+    // Sus calificaciones en el tiempo (línea), con el promedio de todos como referencia
+    const g = r.global, sr = k.serie;
+    $('#ac-tiempo').classList.toggle('hidden', sr.length < 2);
+    dibujar('ac-hist', { type: 'line', data: { labels: sr.map(x => fCorta(x.fecha)), datasets: [
+      { label: 'Su calificación', data: sr.map(x => x.general), borderColor: FIRE, backgroundColor: FIRE, borderWidth: 2.5, tension: .25, pointRadius: 4, fill: false },
+      ...(g.general != null ? [{ label: 'Promedio de todos', data: sr.map(() => g.general), borderColor: GRIS, borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, fill: false }] : []),
+    ] }, options: { scales: ejes({ min: 1, max: 5, beginAtZero: false, ticks: { stepSize: 1, precision: 0 } }), plugins: { legend: { display: true, position: 'bottom' } } } }, sr.length < 2);
+
+    // Historial de visitas y canjes
+    $('#ac-historial-t').textContent = `Historial · ${plural(c.visitas_totales, 'visita', 'visitas')}`;
+    // De 10 en 10, con el mismo paginador de las otras listas (el servidor manda los últimos 200 movimientos)
+    const filaHist = x => (x.tipo === 'CANJE'
+      ? `<li class="flex items-baseline justify-between gap-3"><b>Cortesía canjeada</b><span class="text-[#A3A3A3] text-right">${fFechaHora(x.fecha)}</span></li>`
+      : `<li class="flex items-baseline justify-between gap-3"><span>Visita</span><span class="text-[#A3A3A3] text-right">${fFechaHora(x.fecha)}</span></li>`);
+    const pintarHistorial = pag => {
+      const paginas = Math.max(1, Math.ceil(r.historial.length / 10));
+      pag = Math.min(Math.max(pag, 1), paginas);
+      $('#ac-historial-l').innerHTML = r.historial.slice((pag - 1) * 10, pag * 10).map(filaHist).join('')
+        || '<li class="text-[#6b6b6b]">Aún no hay movimientos.</li>';
+      pintarPager($('#ac-historial-p'), { pag, paginas }, pintarHistorial);
+    };
+    pintarHistorial(1);
+    const mas = r.historial_total - r.historial.length;
+    $('#ac-historial-n').textContent = mas > 0 ? `Se muestran los últimos ${r.historial.length}; hay ${plural(mas, 'movimiento anterior', 'movimientos anteriores')}.` : '';
+    $('#ac-historial-n').classList.toggle('hidden', mas <= 0);
+
+    // Sin calificaciones: un solo aviso, no un panel vacío
+    $('#ac-aspecto').classList.toggle('hidden', !k.n); $('#ac-sincal').classList.toggle('hidden', !!k.n);
+    dibujar('ac-bar', barras(CAMPOS.map(([key, nombre]) => `${nombre} · ${num(k[key])}`), [
+      { label: 'Este cliente', data: CAMPOS.map(([key]) => k[key] ?? 0), backgroundColor: FIRE },
+      ...(g.n ? [{ label: 'Todos los clientes', data: CAMPOS.map(([key]) => g[key] ?? 0), backgroundColor: '#525252' }] : []),
+    ], { y: { max: 5, ticks: { stepSize: 1, precision: 0 } } }), !k.n);
 
     // Comentarios: la sección arranca cerrada y solo se muestran si el dueño la abre
     $('#ac-com').open = false;

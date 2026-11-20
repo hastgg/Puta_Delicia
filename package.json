@@ -10,7 +10,7 @@
     "clave": "node scripts/generar-clave.js --agregar",
     "cifrar-env": "dotenvx encrypt",
     "reset-admin": "node scripts/reset-admin.js",
-    "test": "node --test tests/credenciales.test.js tests/servidor.test.js tests/estadisticas.test.js tests/metricas.test.js tests/orden.test.js tests/mapa.test.js tests/dashboard.test.js tests/comparar.test.js"
+    "test": "node --test tests/credenciales.test.js tests/servidor.test.js tests/estadisticas.test.js tests/metricas.test.js tests/orden.test.js tests/mapa.test.js tests/dashboard.test.js tests/comparar.test.js tests/cliente.test.js"
   },
   "engines": {
     "node": ">=18"
